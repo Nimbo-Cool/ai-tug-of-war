@@ -323,8 +323,8 @@
                 throw new Error("請先在上方框框中輸入或貼上 Gemini API Key！");
             }
 
-            // 更新為最新的 gemini-2.5-flash 模型 API 端點
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            // 更新為指定的最新模型 gemini-3.8-flash
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
