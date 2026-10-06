@@ -317,15 +317,14 @@
             }
         }
 
-        // 核心調用 API 函式：使用 gemini-1.5-flash 穩定模型 + 自動重試機制
-        async function callGeminiAI(promptText, retries = 3, delay = 2000) {
+        // 核心調用 API 函式：包含自動重試（Auto-Retry）與延遲機制
+        async function callGeminiAI(promptText, retries = 3, delay = 2500) {
             saveApiKeyFromModal();
             if (!apiKey) {
                 throw new Error("請先在上方框框中輸入或貼上 Gemini API Key！");
             }
 
-            // 已更新為最穩定、免費額度充足的 gemini-1.5-flash 模型
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
 
             for (let i = 0; i < retries; i++) {
                 try {
@@ -346,9 +345,10 @@
                         const errorData = await response.json().catch(() => ({}));
                         const errMsg = errorData.error?.message || `HTTP ${response.status}`;
                         
+                        // 若遇到伺服器繁忙 (High Demand) 且還有重試次數，在背景延遲後自動重試
                         if (i < retries - 1) {
-                            showLoading("伺服器連線中...", `正在進行自動重試 (${i + 1}/${retries - 1})...`);
-                            await new Promise(res => setTimeout(res, delay));
+                            showLoading("Google 伺服器流量繁忙中...", `正在自動重試第 (${i + 1}/${retries - 1}) 次，請稍候...`);
+                            await new Promise(res => setTimeout(res, delay * (i + 1)));
                             continue;
                         }
                         throw new Error(`API 請求錯誤 (${errMsg})`);
@@ -359,7 +359,7 @@
                     return JSON.parse(rawText);
                 } catch (err) {
                     if (i === retries - 1) throw err;
-                    await new Promise(res => setTimeout(res, delay));
+                    await new Promise(res => setTimeout(res, delay * (i + 1)));
                 }
             }
         }
