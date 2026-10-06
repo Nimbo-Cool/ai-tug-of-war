@@ -33,9 +33,9 @@
 
             <!-- 控制與題庫選單 -->
             <div class="flex flex-wrap items-center gap-3">
-                <button onclick="promptApiKey()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold text-amber-300 flex items-center gap-1.5 transition">
-                    <i class="fa-solid fa-key"></i> 設定 API Key
-                </button>
+                <span class="px-3 py-1.5 bg-emerald-950/80 border border-emerald-700 text-emerald-400 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-check"></i> API Key 已連線
+                </span>
 
                 <button onclick="openMenuModal()" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow">
                     <i class="fa-solid fa-folder-open"></i> 切換 / 上傳題庫
@@ -169,7 +169,8 @@
     </div>
 
     <script>
-        let apiKey = localStorage.getItem('gemini_api_key') || '';
+        // 固定使用您的私人 API Key
+        const apiKey = "AQ.Ab8RN6LF5C_t6HnuImnZ5rG2xvdypGYAyp_2vQdhbmpBib5-Zg";
 
         let currentQuestions = [];
         let currentQuestionIdx = 0;
@@ -180,6 +181,7 @@
         let leftAnswered = false;
         let rightAnswered = false;
 
+        // 預設基礎題庫
         const defaultQuestions = [
             { q: "下列哪一種動物屬於哺乳類動物？", options: ["企鵝", "海豚", "鱷魚", "綠蠵龜"], answer: 1, explanation: "海豚用肺呼吸且胎生哺乳，屬於哺乳類。" },
             { q: "植物進行光合作用時，主要吸收哪種氣體？", options: ["氧氣", "二氧化碳", "氮氣", "氫氣"], answer: 1, explanation: "植物吸收二氧化碳與水，利用陽光製造養分與氧氣。" },
@@ -192,15 +194,6 @@
             currentQuestions = [...defaultQuestions];
             openMenuModal();
         };
-
-        function promptApiKey() {
-            const key = prompt("請輸入您的 Gemini API Key（只需輸入一次，瀏覽器會自動記憶）：", apiKey);
-            if (key !== null) {
-                apiKey = key.trim();
-                localStorage.setItem('gemini_api_key', apiKey);
-                if (apiKey) alert("API Key 設定成功！已儲存於您的瀏覽器。");
-            }
-        }
 
         function openMenuModal() {
             document.getElementById('overlayTitle').innerText = "AI 智慧拔河大對決";
@@ -231,7 +224,7 @@
                     textContent = await file.text();
                 }
 
-                textContent = textContent.slice(0, 15000);
+                textContent = textContent.slice(0, 15000); // 精華文字
 
                 showLoading("AI 正在閱讀全書重點並出題中...", "自動為您生成 10 道高品質選擇題");
 
@@ -294,11 +287,6 @@
 
         // 呼叫 Gemini API
         async function callGeminiAI(promptText) {
-            if (!apiKey) {
-                promptApiKey();
-                if (!apiKey) throw new Error("尚未設定 API Key");
-            }
-
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
             const response = await fetch(url, {
                 method: 'POST',
@@ -440,6 +428,7 @@
             document.getElementById('overlay').classList.remove('hidden');
         }
 
+        // 鍵盤監聽
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 const overlay = document.getElementById('overlay');
