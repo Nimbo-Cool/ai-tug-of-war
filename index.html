@@ -33,9 +33,9 @@
 
             <!-- 控制與題庫選單 -->
             <div class="flex flex-wrap items-center gap-3">
-                <span class="px-3 py-1.5 bg-emerald-950/80 border border-emerald-700 text-emerald-400 rounded-lg text-xs font-bold flex items-center gap-1.5">
-                    <i class="fa-solid fa-circle-check"></i> API Key 已內建綁定
-                </span>
+                <button onclick="promptApiKey()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold text-amber-300 flex items-center gap-1.5 transition border border-slate-600">
+                    <i class="fa-solid fa-key"></i> 設定 API Key
+                </button>
 
                 <button onclick="openMenuModal()" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow">
                     <i class="fa-solid fa-folder-open"></i> 切換 / 上傳題庫
@@ -119,7 +119,7 @@
 
     </main>
 
-    <!-- 啟動與選擇題庫首頁 Modal -->
+    <!-- Modal 視窗 -->
     <div id="overlay" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4 text-center overflow-y-auto">
         <div id="overlayContent" class="max-w-md w-full bg-slate-800 p-6 md:p-8 rounded-2xl border border-slate-700 shadow-2xl space-y-5 my-auto">
             <div>
@@ -169,8 +169,7 @@
     </div>
 
     <script>
-        // 直接硬編碼綁定您的私人 API Key
-        const apiKey = "AQ.Ab8RN6LF5C_t6HnuImnZ5rG2xvdypGYAyp_2vQdhbmpBib5-Zg";
+        let apiKey = localStorage.getItem('gemini_api_key') || '';
 
         let currentQuestions = [];
         let currentQuestionIdx = 0;
@@ -194,6 +193,15 @@
             openMenuModal();
         };
 
+        function promptApiKey() {
+            const input = prompt("請輸入您的 Gemini API Key：\n（金鑰只會保存在您的電腦瀏覽器中，不會公開上傳）", apiKey);
+            if (input !== null) {
+                apiKey = input.trim();
+                localStorage.setItem('gemini_api_key', apiKey);
+                if (apiKey) alert("API Key 已儲存！您可以開始使用 AI 出題功能了。");
+            }
+        }
+
         function openMenuModal() {
             document.getElementById('overlayTitle').innerText = "AI 智慧拔河大對決";
             document.getElementById('overlayDesc').innerText = "請選擇課本教冊或主題開始出題：";
@@ -201,7 +209,6 @@
             document.getElementById('overlay').classList.remove('hidden');
         }
 
-        // 上傳 PDF 檔案解析出題
         async function handleFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -247,12 +254,11 @@
                     throw new Error("解析結果無有效題目");
                 }
             } catch (err) {
-                alert("檔案讀取或 AI 出題失敗：" + err.message);
+                alert("出題失敗：" + err.message);
                 openMenuModal();
             }
         }
 
-        // 選擇主題讓 AI 出題
         async function generateQuestionsByTopic(topic) {
             if (!topic) return;
 
@@ -279,13 +285,17 @@
                     throw new Error("生成結果格式不符");
                 }
             } catch (err) {
-                alert("AI 出題失敗：" + err.message);
+                alert("出題失敗：" + err.message);
                 openMenuModal();
             }
         }
 
-        // 呼叫 Gemini API
         async function callGeminiAI(promptText) {
+            if (!apiKey) {
+                promptApiKey();
+                if (!apiKey) throw new Error("您尚未輸入 API Key，請點擊右上角設定。");
+            }
+
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
             const response = await fetch(url, {
                 method: 'POST',
@@ -296,8 +306,13 @@
                 })
             });
 
+            if (response.status === 401) {
+                promptApiKey();
+                throw new Error("API Key 已失效或不正確，請重新輸入有效的 Gemini API Key。");
+            }
+
             if (!response.ok) {
-                throw new Error(`API 請求錯誤 (${response.status})`);
+                throw new Error(`API 請求錯誤 (HTTP ${response.status})`);
             }
 
             const data = await response.json();
@@ -305,7 +320,6 @@
             return JSON.parse(rawText);
         }
 
-        // 開始遊戲
         function startGame() {
             hideOverlay();
             currentQuestionIdx = 0;
@@ -453,7 +467,7 @@
             document.getElementById('overlayTitle').innerText = title;
             document.getElementById('overlayDesc').innerText = desc;
             document.getElementById('actionBtnArea').style.display = "block";
-            document.getElementById('overlayBtn').innerText = "🚀 立即開始比賽 (Enter)";
+            document.getElementById('overlayBtn').innerText = "🚀 釋放勝負，立即開始！ (Enter)";
             document.getElementById('overlay').classList.remove('hidden');
         }
 
