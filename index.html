@@ -323,7 +323,8 @@
                 throw new Error("請先在上方框框中輸入或貼上 Gemini API Key！");
             }
 
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            // 更新為最新的 gemini-2.5-flash 模型 API 端點
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -334,11 +335,13 @@
             });
 
             if (response.status === 401) {
-                throw new Error("API Key 無效或已過期，請重新檢查並貼上有效的 Gemini API Key。");
+                throw new Error("API Key 無效或已過期，請重新貼上有效的 Gemini API Key。");
             }
 
             if (!response.ok) {
-                throw new Error(`API 請求錯誤 (HTTP ${response.status})`);
+                const errorData = await response.json().catch(() => ({}));
+                const errMsg = errorData.error?.message || `HTTP ${response.status}`;
+                throw new Error(`API 請求錯誤 (${errMsg})`);
             }
 
             const data = await response.json();
