@@ -458,8 +458,8 @@
 
             showLoading("正在解析教冊檔案...", "準備開始提取內文文字");
 
+            let textContent = "";
             try {
-                let textContent = "";
                 if (file.name.toLowerCase().endsWith('.pdf')) {
                     const arrayBuffer = await file.arrayBuffer();
                     const PDFJS_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/';
