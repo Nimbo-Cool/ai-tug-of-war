@@ -435,6 +435,22 @@
             document.getElementById('overlay').classList.remove('hidden');
         }
 
+        function withTimeout(promise, ms, label) {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error(`${label}讀取逾時`)), ms))
+            ]);
+        }
+
+        // 字數超過上限時，每頁平均取一段，讓 AI 看到整本書而不是只有前幾頁
+        function sampleEvenly(pageTexts, limit) {
+            const cleaned = pageTexts.map(t => t.replace(/\s+/g, ' ').trim()).filter(t => t.length > 0);
+            const total = cleaned.reduce((n, t) => n + t.length, 0);
+            if (total <= limit) return cleaned.join('\n');
+            const perPage = Math.max(80, Math.floor(limit / cleaned.length));
+            return cleaned.map(t => t.slice(0, perPage)).join('\n').slice(0, limit);
+        }
+
         async function handleFileUpload(event) {
             saveApiKeyFromModal();
             const file = event.target.files[0];
@@ -446,22 +462,39 @@
                 let textContent = "";
                 if (file.name.toLowerCase().endsWith('.pdf')) {
                     const arrayBuffer = await file.arrayBuffer();
-                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    const PDFJS_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/';
+                    const pdf = await withTimeout(pdfjsLib.getDocument({
+                        data: arrayBuffer,
+                        cMapUrl: PDFJS_BASE + 'cmaps/',          // 中文字型對照表，教冊 PDF 必備
+                        cMapPacked: true,
+                        standardFontDataUrl: PDFJS_BASE + 'standard_fonts/'
+                    }).promise, 30000, '開啟 PDF');
+
+                    const pageTexts = [];
+                    let skipped = 0;
                     for (let i = 1; i <= pdf.numPages; i++) {
-                        showLoading(`正在讀取教冊內文 (${i}/${pdf.numPages} 頁)...`, "這可能需要幾秒鐘");
-                        const page = await pdf.getPage(i);
-                        const content = await page.getTextContent();
-                        textContent += content.items.map(item => item.str).join(" ") + "\n";
+                        showLoading(`正在讀取教冊內文 (${i}/${pdf.numPages} 頁)...`, skipped ? `已略過 ${skipped} 頁讀不出來的頁面` : "這可能需要幾秒鐘");
+                        try {
+                            // 單頁最多等 8 秒，讀不出來就跳過，不讓整份卡住
+                            const page = await withTimeout(pdf.getPage(i), 8000, `第 ${i} 頁`);
+                            const content = await withTimeout(page.getTextContent(), 8000, `第 ${i} 頁`);
+                            pageTexts.push(content.items.map(item => item.str).join(" "));
+                            page.cleanup();
+                        } catch (e) {
+                            skipped++;
+                            console.warn('略過頁面', i, e);
+                        }
                     }
+                    textContent = sampleEvenly(pageTexts, 15000);
                 } else {
-                    textContent = await file.text();
+                    textContent = (await file.text()).slice(0, 15000);
                 }
 
                 if (textContent.replace(/\s/g, '').length < 50) {
                     throw new Error("這份 PDF 讀不到文字（可能是掃描成圖片的檔案），請改用有文字層的 PDF 或 .txt。");
                 }
 
-                textContent = textContent.slice(0, 15000);
+                showLoading("教冊讀取完成！", `共取得約 ${textContent.replace(/\s/g, '').length} 字，準備交給 AI 出題`);
             } catch (err) {
                 alert("讀取檔案失敗：" + err.message);
                 openMenuModal();
