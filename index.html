@@ -17,8 +17,6 @@
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
         body { font-family: 'Noto Sans TC', sans-serif; user-select: none; }
         .rope-transition { transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
-        .pulse-anim { animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
     </style>
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex flex-col justify-between overflow-x-hidden">
@@ -33,31 +31,15 @@
                 </h1>
             </div>
 
-            <!-- 控制按鈕組 -->
+            <!-- 控制與題庫選單 -->
             <div class="flex flex-wrap items-center gap-3">
-                <!-- API Key 設定 -->
-                <button onclick="promptApiKey()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs flex items-center gap-1.5 transition">
-                    <i class="fa-solid font-mono fa-key text-amber-400"></i> API Key 設定
+                <button onclick="promptApiKey()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs font-bold text-amber-300 flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-key"></i> 設定 API Key
                 </button>
 
-                <!-- 主題選擇（點擊直接讓 AI 生成全新題目） -->
-                <div class="relative">
-                    <select id="topicSelect" onchange="generateQuestionsByTopic(this.value)" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold text-amber-300 cursor-pointer focus:outline-none">
-                        <option value="" disabled selected>✨ 選擇 AI 主題（每次出題不同）</option>
-                        <option value="自然科學小常識">🌱 自然科學小常識</option>
-                        <option value="成語典故與成語接龍">📚 成語典故與活用</option>
-                        <option value="台灣歷史與地理人文">🗺️ 台灣歷史與地理</option>
-                        <option value="日常生活生活常識與安全">💡 日常生活與安全常識</option>
-                        <option value="國小基礎英文單字與文法">🔤 基礎英文單字與語感</option>
-                        <option value="趣味數學邏輯推理">🔢 趣味數學與邏輯腦筋急轉彎</option>
-                    </select>
-                </div>
-
-                <!-- 匯入 PDF / 文字按鈕 -->
-                <label class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold cursor-pointer transition flex items-center gap-1.5 shadow">
-                    <i class="fa-solid fa-file-pdf"></i> 匯入教冊 PDF / 檔案
-                    <input type="file" id="pdfInput" accept=".pdf,.txt" class="hidden" onchange="handleFileUpload(event)">
-                </label>
+                <button onclick="openMenuModal()" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow">
+                    <i class="fa-solid fa-folder-open"></i> 切換 / 上傳題庫
+                </button>
             </div>
         </div>
     </header>
@@ -84,22 +66,18 @@
 
             <!-- 拔河賽道 -->
             <div class="relative h-20 bg-slate-900 rounded-xl overflow-hidden border-2 border-slate-700 flex items-center justify-center">
-                <!-- 中心線 -->
                 <div class="absolute inset-y-0 w-1 bg-amber-400 z-10 left-1/2 -translate-x-1/2 opacity-70"></div>
                 <div class="absolute top-1 left-1/2 -translate-x-1/2 text-[10px] text-amber-400 font-mono z-10">勝負中線</div>
 
                 <!-- 繩子與人物容器 -->
                 <div id="ropeContainer" class="absolute w-full flex items-center justify-center rope-transition" style="transform: translateX(0px);">
-                    <!-- 左隊選手 -->
                     <div class="flex items-center gap-1 mr-[-10px]">
                         <span class="text-4xl transform -scale-x-100">🤼</span>
                         <span class="text-3xl transform -scale-x-100">🧒</span>
                     </div>
-                    <!-- 繩子與紅結 -->
                     <div class="w-2/3 h-4 bg-amber-700 border-y-2 border-amber-900 relative flex items-center justify-center shadow-inner">
                         <div class="w-6 h-8 bg-red-600 rounded-sm shadow-md animate-bounce"></div>
                     </div>
-                    <!-- 右隊選手 -->
                     <div class="flex items-center gap-1 ml-[-10px]">
                         <span class="text-3xl">🧒</span>
                         <span class="text-4xl">🤼</span>
@@ -111,67 +89,97 @@
         <!-- 題目顯示區 -->
         <div class="bg-slate-800/90 rounded-2xl p-6 border border-slate-700 shadow-2xl min-h-[140px] flex flex-col justify-center items-center text-center my-2 relative">
             <div id="topicTag" class="absolute top-3 left-4 text-xs font-bold text-indigo-400 bg-indigo-950/80 border border-indigo-800 px-2.5 py-1 rounded-md">
-                主題：自然科學小常識
+                題庫：預設基礎題庫
             </div>
             <h2 id="questionText" class="text-xl md:text-2xl font-bold leading-relaxed text-slate-100 mt-4">
-                題目載入中...
+                請在下方選擇或上傳題庫開始比賽！
             </h2>
         </div>
 
         <!-- 雙人搶答選項區（左隊 vs 右隊） -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 my-2">
-            <!-- 紅隊選項區（按鍵 Q, W, E, R） -->
+            <!-- 紅隊選項區 -->
             <div class="bg-red-950/30 border-2 border-red-900/50 rounded-2xl p-4 shadow-lg flex flex-col gap-2">
                 <div class="text-xs font-bold text-red-400 flex justify-between items-center mb-1">
                     <span>🔴 紅隊搶答區</span>
                     <span class="text-[11px] opacity-80">按鍵：Q, W, E, R</span>
                 </div>
-                <div id="leftOptions" class="grid grid-cols-1 gap-2">
-                    <!-- JavaScript 動態生成按鈕 -->
-                </div>
+                <div id="leftOptions" class="grid grid-cols-1 gap-2"></div>
             </div>
 
-            <!-- 藍隊選項區（按鍵 U, I, O, P） -->
+            <!-- 藍隊選項區 -->
             <div class="bg-blue-950/30 border-2 border-blue-900/50 rounded-2xl p-4 shadow-lg flex flex-col gap-2">
                 <div class="text-xs font-bold text-blue-400 flex justify-between items-center mb-1">
                     <span>🔵 藍隊搶答區</span>
                     <span class="text-[11px] opacity-80">按鍵：U, I, O, P</span>
                 </div>
-                <div id="rightOptions" class="grid grid-cols-1 gap-2">
-                    <!-- JavaScript 動態生成按鈕 -->
-                </div>
+                <div id="rightOptions" class="grid grid-cols-1 gap-2"></div>
             </div>
         </div>
 
     </main>
 
-    <!-- 載入與遮罩狀態區 -->
-    <div id="overlay" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center">
-        <div id="overlayContent" class="max-w-md w-full bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-2xl">
-            <div class="text-5xl mb-4">🪢</div>
-            <h3 id="overlayTitle" class="text-2xl font-bold mb-2 text-amber-400">AI 智慧拔河大對決</h3>
-            <p id="overlayDesc" class="text-slate-300 text-sm mb-6 leading-relaxed">
-                點擊下方按鈕或選取上方主題，讓 AI 即時生成全新題目開始對決！
-            </p>
-            <button id="overlayBtn" onclick="startGame()" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-lg shadow-lg transform transition active:scale-95">
-                🚀 開始遊戲 (Enter)
-            </button>
+    <!-- 一開始的選擇/出題首頁 Modal -->
+    <div id="overlay" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4 text-center overflow-y-auto">
+        <div id="overlayContent" class="max-w-md w-full bg-slate-800 p-6 md:p-8 rounded-2xl border border-slate-700 shadow-2xl space-y-5 my-auto">
+            <div>
+                <div class="text-5xl mb-2">🪢</div>
+                <h3 id="overlayTitle" class="text-2xl font-black text-amber-400">AI 智慧拔河大對決</h3>
+                <p id="overlayDesc" class="text-slate-300 text-xs mt-1">請選擇課本教冊或主題開始出題：</p>
+            </div>
+
+            <!-- 核心功能：上傳教冊 PDF -->
+            <div class="bg-indigo-950/50 border-2 border-indigo-500 hover:border-indigo-400 p-5 rounded-2xl text-left transition shadow-lg">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-xl font-bold">
+                        📄
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-indigo-200 text-base">匯入教師手冊 / 課本檔</h4>
+                        <p class="text-xs text-slate-300">上傳教冊 PDF，AI 將直接從全書內容出題</p>
+                    </div>
+                </div>
+                <label class="mt-3 w-full py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white text-center font-extrabold text-sm rounded-xl cursor-pointer block transition shadow-md">
+                    <i class="fa-solid fa-file-pdf mr-1.5"></i> 選擇並上傳教冊 PDF
+                    <input type="file" id="pdfInputModal" accept=".pdf,.txt" class="hidden" onchange="handleFileUpload(event)">
+                </label>
+            </div>
+
+            <!-- 次要功能：選擇主題 AI 出題 -->
+            <div class="bg-slate-700/50 border border-slate-600 p-4 rounded-xl text-left">
+                <label class="block text-xs font-bold text-amber-300 mb-2">✨ 或挑選預設 AI 主題生成題目：</label>
+                <select id="topicSelectModal" onchange="generateQuestionsByTopic(this.value)" class="w-full bg-slate-800 border border-slate-600 p-2.5 rounded-lg text-xs font-bold text-slate-100 cursor-pointer focus:outline-none focus:border-amber-400">
+                    <option value="" disabled selected>-- 點擊選擇主題（每次出題不同） --</option>
+                    <option value="自然科學小常識">🌱 自然科學小常識</option>
+                    <option value="成語典故與成語接龍">📚 成語典故與活用</option>
+                    <option value="台灣歷史與地理人文">🗺️ 台灣歷史與地理</option>
+                    <option value="日常生活生活常識與安全">💡 日常生活與安全常識</option>
+                    <option value="國小基礎英文單字與文法">🔤 基礎英文單字與語感</option>
+                    <option value="趣味數學邏輯推理">🔢 趣味數學與邏輯腦筋急轉彎</option>
+                </select>
+            </div>
+
+            <!-- 預設按鈕區 -->
+            <div id="actionBtnArea" class="pt-1">
+                <button id="overlayBtn" onclick="startGame()" class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl text-sm transition">
+                    🚀 直接使用預設題目開始遊戲
+                </button>
+            </div>
         </div>
     </div>
 
     <script>
-        // 全域變數
         let apiKey = localStorage.getItem('gemini_api_key') || '';
+
         let currentQuestions = [];
         let currentQuestionIdx = 0;
-        let ropePosition = 0; // -100 (左勝) 到 100 (右勝)
+        let ropePosition = 0;
         let timerInterval = null;
         let timeLeft = 15;
         let isQuestionActive = false;
         let leftAnswered = false;
         let rightAnswered = false;
 
-        // 預設題目 (備用)
         const defaultQuestions = [
             { q: "下列哪一種動物屬於哺乳類動物？", options: ["企鵝", "海豚", "鱷魚", "綠蠵龜"], answer: 1, explanation: "海豚用肺呼吸且胎生哺乳，屬於哺乳類。" },
             { q: "植物進行光合作用時，主要吸收哪種氣體？", options: ["氧氣", "二氧化碳", "氮氣", "氫氣"], answer: 1, explanation: "植物吸收二氧化碳與水，利用陽光製造養分與氧氣。" },
@@ -182,50 +190,23 @@
 
         window.onload = function() {
             currentQuestions = [...defaultQuestions];
-            showStartOverlay("預設基礎題庫", "點擊開始按鈕即可開始拔河！兩隊可同時搶答。");
+            openMenuModal();
         };
 
         function promptApiKey() {
-            const key = prompt("請輸入您的 Gemini API Key：", apiKey);
+            const key = prompt("請輸入您的 Gemini API Key（只需輸入一次，瀏覽器會自動記憶）：", apiKey);
             if (key !== null) {
                 apiKey = key.trim();
                 localStorage.setItem('gemini_api_key', apiKey);
-                alert(apiKey ? "API Key 設定成功！" : "已清除 API Key。");
+                if (apiKey) alert("API Key 設定成功！已儲存於您的瀏覽器。");
             }
         }
 
-        // 選擇主題後，讓 AI 即時生成全新 10 題
-        async function generateQuestionsByTopic(topic) {
-            if (!topic) return;
-
-            showLoading(`AI 正在針對「${topic}」出題中...`, "請稍候 5~10 秒，AI 正在生成全新 10 道趣味題目");
-
-            const prompt = `請針對主題「${topic}」，為國小/國中學生設計 10 道全新且不重複的四選一單選題。
-            請勿出重複題目。每次生成的題目請確保隨機與豐富度。
-            請嚴格以 JSON 格式輸出陣列，結構如下：
-            [
-              {
-                "q": "題目敘述",
-                "options": ["選項0", "選項1", "選項2", "選項3"],
-                "answer": 正確選項索引數字(0-3),
-                "explanation": "簡短解析"
-              }
-            ]`;
-
-            try {
-                const generated = await callGeminiAI(prompt);
-                if (generated && generated.length > 0) {
-                    currentQuestions = generated;
-                    document.getElementById('topicTag').innerText = `主題：${topic}`;
-                    showStartOverlay(`主題：${topic}`, `AI 已為您成功生成 ${generated.length} 道全新題目！`);
-                } else {
-                    throw new Error("生成結果格式不符");
-                }
-            } catch (err) {
-                alert("AI 出題失敗：" + err.message + "\n已切回備用題庫。");
-                currentQuestions = [...defaultQuestions];
-                showStartOverlay("預設題庫", "點擊開始遊戲。");
-            }
+        function openMenuModal() {
+            document.getElementById('overlayTitle').innerText = "AI 智慧拔河大對決";
+            document.getElementById('overlayDesc').innerText = "請選擇課本教冊或主題開始出題：";
+            document.getElementById('actionBtnArea').style.display = "block";
+            document.getElementById('overlay').classList.remove('hidden');
         }
 
         // 上傳 PDF 檔案解析出題
@@ -233,7 +214,7 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            showLoading("正在讀取檔案與解析內文...", "準備將教材傳送給 AI 出題");
+            showLoading("正在解析教冊檔案...", "準備開始提取內文文字");
 
             try {
                 let textContent = "";
@@ -241,7 +222,7 @@
                     const arrayBuffer = await file.arrayBuffer();
                     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
                     for (let i = 1; i <= pdf.numPages; i++) {
-                        showLoading(`正在讀取 PDF 頁數 (${i}/${pdf.numPages})...`, "萃取教材文字中");
+                        showLoading(`正在讀取教冊內文 (${i}/${pdf.numPages} 頁)...`, "這可能需要幾秒鐘");
                         const page = await pdf.getPage(i);
                         const content = await page.getTextContent();
                         textContent += content.items.map(item => item.str).join(" ") + "\n";
@@ -250,15 +231,15 @@
                     textContent = await file.text();
                 }
 
-                textContent = textContent.slice(0, 15000); // 截取前 15,000 字精華
+                textContent = textContent.slice(0, 15000);
 
-                showLoading("AI 正在閱讀教材並生成 10 題測驗...", "分析重點內容中");
+                showLoading("AI 正在閱讀全書重點並出題中...", "自動為您生成 10 道高品質選擇題");
 
                 const prompt = `請根據以下教材內文，出 10 道適合學生的四選一選擇題：\n\n${textContent}\n\n
                 請嚴格以 JSON 格式輸出陣列：
                 [
                   {
-                    "q": "問題",
+                    "q": "問題敘述",
                     "options": ["選項0", "選項1", "選項2", "選項3"],
                     "answer": 0,
                     "explanation": "解析"
@@ -268,24 +249,54 @@
                 const generated = await callGeminiAI(prompt);
                 if (generated && generated.length > 0) {
                     currentQuestions = generated;
-                    document.getElementById('topicTag').innerText = `來源：${file.name}`;
-                    showStartOverlay(`課本彙編：${file.name}`, `AI 已針對教材內容生成 ${generated.length} 題測驗！`);
+                    document.getElementById('topicTag').innerText = `來源教冊：${file.name}`;
+                    showSuccessPrompt(`教冊「${file.name}」匯入成功！`, `AI 已針對本書生成 ${generated.length} 題測驗！`);
                 } else {
                     throw new Error("解析結果無有效題目");
                 }
             } catch (err) {
-                alert("檔案讀取或出題失敗：" + err.message);
-                hideOverlay();
+                alert("檔案讀取或 AI 出題失敗：" + err.message);
+                openMenuModal();
+            }
+        }
+
+        // 選擇主題讓 AI 出題
+        async function generateQuestionsByTopic(topic) {
+            if (!topic) return;
+
+            showLoading(`AI 正在生成「${topic}」題目...`, "請稍候，AI 正在現場創作全新 10 題");
+
+            const prompt = `請針對主題「${topic}」，為學生設計 10 道全新且不重複的四選一單選題。
+            請嚴格以 JSON 格式輸出陣列：
+            [
+              {
+                "q": "題目敘述",
+                "options": ["選項0", "選項1", "選項2", "選項3"],
+                "answer": 0,
+                "explanation": "解析"
+              }
+            ]`;
+
+            try {
+                const generated = await callGeminiAI(prompt);
+                if (generated && generated.length > 0) {
+                    currentQuestions = generated;
+                    document.getElementById('topicTag').innerText = `主題：${topic}`;
+                    showSuccessPrompt(`主題「${topic}」題目已生成！`, `已成功生成 ${generated.length} 道全新題目！`);
+                } else {
+                    throw new Error("生成結果格式不符");
+                }
+            } catch (err) {
+                alert("AI 出題失敗：" + err.message);
+                openMenuModal();
             }
         }
 
         // 呼叫 Gemini API
         async function callGeminiAI(promptText) {
             if (!apiKey) {
-                const inputKey = prompt("請輸入 Gemini API Key 以使用 AI 出題功能：");
-                if (!inputKey) throw new Error("缺少 API Key");
-                apiKey = inputKey.trim();
-                localStorage.setItem('gemini_api_key', apiKey);
+                promptApiKey();
+                if (!apiKey) throw new Error("尚未設定 API Key");
             }
 
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
@@ -316,7 +327,6 @@
             loadQuestion(0);
         }
 
-        // 載入單一題目
         function loadQuestion(idx) {
             if (idx >= currentQuestions.length) {
                 endGame();
@@ -332,14 +342,12 @@
             document.getElementById('questionProgress').innerText = `第 ${idx + 1} / ${currentQuestions.length} 題`;
             document.getElementById('questionText').innerText = qData.q;
 
-            // 渲染左隊與右隊選項
             const keysLeft = ['Q', 'W', 'E', 'R'];
             const keysRight = ['U', 'I', 'O', 'P'];
 
             renderOptionGroup('leftOptions', qData.options, keysLeft, 'left');
             renderOptionGroup('rightOptions', qData.options, keysRight, 'right');
 
-            // 開始倒數計時
             startTimer();
         }
 
@@ -386,16 +394,15 @@
             if (team === 'left' && !leftAnswered) {
                 leftAnswered = true;
                 disableOptionGroup('leftOptions');
-                if (isCorrect) ropePosition -= 20; // 紅隊向左拉
+                if (isCorrect) ropePosition -= 20;
             } else if (team === 'right' && !rightAnswered) {
                 rightAnswered = true;
                 disableOptionGroup('rightOptions');
-                if (isCorrect) ropePosition += 20; // 藍隊向右拉
+                if (isCorrect) ropePosition += 20;
             }
 
             updateRopeUI();
 
-            // 兩隊皆已作答或拉到底則進入下一題
             if (leftAnswered && rightAnswered) {
                 setTimeout(nextQuestion, 1000);
             }
@@ -407,7 +414,6 @@
         }
 
         function updateRopeUI() {
-            // 限制繩子位置在 -120px 到 +120px 之間
             ropePosition = Math.max(-120, Math.min(120, ropePosition));
             document.getElementById('ropeContainer').style.transform = `translateX(${ropePosition}px)`;
         }
@@ -427,15 +433,17 @@
             if (ropePosition < -20) winnerText = "🔴 恭喜【紅隊】獲得最終勝利！";
             else if (ropePosition > 20) winnerText = "🔵 恭喜【藍隊】獲得最終勝利！";
 
-            showStartOverlay("比賽結束！", winnerText);
-            document.getElementById('overlayBtn').innerText = "🔄 重新一局";
+            document.getElementById('overlayTitle').innerText = "比賽結束！";
+            document.getElementById('overlayDesc').innerText = winnerText;
+            document.getElementById('actionBtnArea').style.display = "block";
+            document.getElementById('overlayBtn').innerText = "🚀 重新一局 (Enter)";
+            document.getElementById('overlay').classList.remove('hidden');
         }
 
-        // 鍵盤快捷鍵 (QWER & UIOP, Enter 開始)
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 const overlay = document.getElementById('overlay');
-                if (!overlay.classList.contains('hidden')) {
+                if (!overlay.classList.contains('hidden') && document.getElementById('actionBtnArea').style.display !== 'none') {
                     startGame();
                     return;
                 }
@@ -443,26 +451,22 @@
 
             if (!isQuestionActive) return;
             const k = e.key.toUpperCase();
-            if (['Q','W','E','R'].includes(k)) {
-                handleAnswer('left', ['Q','W','E','R'].indexOf(k));
-            } else if (['U','I','O','P'].includes(k)) {
-                handleAnswer('right', ['U','I','O','P'].indexOf(k));
-            }
+            if (['Q','W','E','R'].includes(k)) handleAnswer('left', ['Q','W','E','R'].indexOf(k));
+            else if (['U','I','O','P'].includes(k)) handleAnswer('right', ['U','I','O','P'].indexOf(k));
         });
-
-        // 介面遮罩控制
-        function showStartOverlay(title, desc) {
-            document.getElementById('overlayTitle').innerText = title;
-            document.getElementById('overlayDesc').innerText = desc;
-            document.getElementById('overlayBtn').innerText = "🚀 開始遊戲 (Enter)";
-            document.getElementById('overlayBtn').style.display = "block";
-            document.getElementById('overlay').classList.remove('hidden');
-        }
 
         function showLoading(title, desc) {
             document.getElementById('overlayTitle').innerText = title;
             document.getElementById('overlayDesc').innerText = desc;
-            document.getElementById('overlayBtn').style.display = "none";
+            document.getElementById('actionBtnArea').style.display = "none";
+            document.getElementById('overlay').classList.remove('hidden');
+        }
+
+        function showSuccessPrompt(title, desc) {
+            document.getElementById('overlayTitle').innerText = title;
+            document.getElementById('overlayDesc').innerText = desc;
+            document.getElementById('actionBtnArea').style.display = "block";
+            document.getElementById('overlayBtn').innerText = "🚀 立即開始比賽 (Enter)";
             document.getElementById('overlay').classList.remove('hidden');
         }
 
