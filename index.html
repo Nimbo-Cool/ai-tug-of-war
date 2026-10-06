@@ -323,8 +323,15 @@
         async function generateFromSource(src, isRegen) {
             const label = src.type === 'pdf' ? `教冊「${src.name}」` : `主題「${src.topic}」`;
             showLoading(isRegen ? `AI 正在用${label}重新出題...` : `AI 正在根據${label}出題...`, "請稍候，約 10～30 秒");
+            const t0 = Date.now();
+            const ticker = setInterval(() => {
+                const sec = Math.round((Date.now() - t0) / 1000);
+                const base = document.getElementById('overlayDesc').innerText.split('（已等待')[0];
+                document.getElementById('overlayDesc').innerText = `${base}（已等待 ${sec} 秒）`;
+            }, 1000);
             try {
                 const generated = await callGeminiAI(buildPrompt(src));
+                clearInterval(ticker);
                 lastSource = src;
                 currentQuestions = generated;
                 previousQs.push(...generated.map(q => q.q));
@@ -334,6 +341,7 @@
                     `AI 已生成 ${generated.length} 道題目，準備好就開始！`
                 );
             } catch (err) {
+                clearInterval(ticker);
                 alert("出題失敗：" + err.message);
                 openMenuModal();
             }
@@ -501,12 +509,22 @@
                 };
             }
 
+            // 最多等 60 秒，避免畫面永遠卡在「出題中」
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 60000);
+            options.signal = controller.signal;
+
             let response;
             try {
                 response = await fetch(url, options);
             } catch (e) {
+                clearTimeout(timer);
+                if (e.name === 'AbortError') {
+                    return { ok: false, status: 408, msg: `${model} 超過 60 秒沒回應` };
+                }
                 return { ok: false, status: 0, msg: `網路連不到 ${PROVIDERS[provider].name}（可能被學校網路/防火牆擋住，或目前離線）` };
             }
+            clearTimeout(timer);
             const data = await response.json().catch(() => ({}));
             if (response.ok) {
                 const text = provider === 'gemini'
@@ -562,6 +580,12 @@
 
                     // 模型不存在 / 已下架 / 帳號等級還用不到：換下一個模型
                     if (res.status === 404 || /model_not_found|does not exist|do not have access/i.test(detail)) break;
+
+                    // 超時：不重試同一個模型，直接換下一個
+                    if (res.status === 408) {
+                        showLoadingIfOpen("這個模型太慢了，換一個試試...", `改用下一個模型`);
+                        break;
+                    }
 
                     // 額度用完：等一下再試，最後一次就換模型
                     if (res.status === 429) {
