@@ -148,12 +148,15 @@
             <div id="setupSections" class="space-y-5">
             <!-- 1. AI 來源切換 + API Key 輸入框（自動記憶於瀏覽器） -->
             <div class="bg-slate-900/80 border border-amber-500/40 p-4 rounded-xl text-left space-y-2">
-                <div class="grid grid-cols-2 gap-2 mb-1">
-                    <button type="button" id="btnGemini" onclick="switchProvider('gemini')" class="py-2 rounded-lg text-xs font-bold transition border">
-                        ✨ Gemini（免費）
+                <div class="grid grid-cols-3 gap-2 mb-1">
+                    <button type="button" id="btn_gemini" onclick="switchProvider('gemini')" class="py-2 rounded-lg text-xs font-bold transition border">
+                        ✨ Gemini
                     </button>
-                    <button type="button" id="btnOpenAI" onclick="switchProvider('openai')" class="py-2 rounded-lg text-xs font-bold transition border">
-                        🤖 GPT（需儲值）
+                    <button type="button" id="btn_openai" onclick="switchProvider('openai')" class="py-2 rounded-lg text-xs font-bold transition border">
+                        🤖 GPT
+                    </button>
+                    <button type="button" id="btn_xai" onclick="switchProvider('xai')" class="py-2 rounded-lg text-xs font-bold transition border">
+                        ⚡ Grok
                     </button>
                 </div>
                 <label class="block text-xs font-bold text-amber-300 flex items-center gap-1.5">
@@ -261,11 +264,23 @@
                 // 便宜又快的 mini 等級，失敗時自動往下換
                 models: ['gpt-5.4-mini', 'gpt-mini-latest', 'gpt-5-mini'],
                 placeholder: '請貼上您的 OpenAI API Key（sk- 開頭）...',
-                keyHint: 'sk- 開頭'
+                keyHint: 'sk- 開頭',
+                base: 'https://api.openai.com/v1',
+                jsonMode: true
+            },
+            xai: {
+                name: 'Grok',
+                // 快速、便宜的非推理版優先；名稱都失效時會自動查詢帳號可用的模型
+                models: ['grok-4-1-fast-non-reasoning', 'grok-4-fast-non-reasoning', 'grok-4.7'],
+                placeholder: '請貼上您的 xAI API Key（xai- 開頭）...',
+                keyHint: 'xai- 開頭',
+                base: 'https://api.x.ai/v1',
+                jsonMode: false   // 靠提示詞要求 JSON，避免參數不相容
             }
         };
 
         let provider = localStorage.getItem('ai_provider') || 'gemini';
+        if (!PROVIDERS[provider]) provider = 'gemini';
         let apiKey = localStorage.getItem(`${provider}_api_key`) || '';
         let workingModel = localStorage.getItem(`${provider}_working_model`) || '';
 
@@ -281,8 +296,9 @@
         function renderProviderUI() {
             const on = 'bg-amber-500 border-amber-400 text-slate-900';
             const off = 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700';
-            document.getElementById('btnGemini').className = `py-2 rounded-lg text-xs font-bold transition border ${provider === 'gemini' ? on : off}`;
-            document.getElementById('btnOpenAI').className = `py-2 rounded-lg text-xs font-bold transition border ${provider === 'openai' ? on : off}`;
+            Object.keys(PROVIDERS).forEach(p => {
+                document.getElementById(`btn_${p}`).className = `py-2 rounded-lg text-xs font-bold transition border ${provider === p ? on : off}`;
+            });
             document.getElementById('keyLabel').innerText = `${PROVIDERS[provider].name} API Key 設定：`;
             const input = document.getElementById('apiKeyInputModal');
             input.placeholder = PROVIDERS[provider].placeholder;
@@ -399,7 +415,7 @@ ${JSON.stringify(list)}
 請嚴格以 JSON 格式輸出：{"results":[{"id":0,"best":1,"ok":true}]}`;
             const raw = await callGeminiRaw(prompt);
             const parsed = parseJsonLoose(raw);
-            const results = (Array.isArray(parsed) ? parsed : (parsed.results || []))
+            const results = (Array.isArray(parsed) ? parsed : (parsed.results || Object.values(parsed).find(Array.isArray) || []))
                 .filter(r => r && r.id !== undefined && r.best !== undefined);
             // 審題結果格式不對：視為檢查失敗，交給外層保留原題
             if (results.length < questions.length / 2) throw new Error('審題結果格式不符');
@@ -652,18 +668,21 @@ ${JSON.stringify(list)}
                     })
                 };
             } else {
-                url = 'https://api.openai.com/v1/chat/completions';
+                // OpenAI 與 Grok 都是相同的 chat/completions 格式
+                const P = PROVIDERS[provider];
+                url = `${P.base}/chat/completions`;
+                const body = {
+                    model,
+                    messages: [
+                        { role: 'system', content: '你是台灣國小教師的出題助手。只輸出 JSON，不要任何其他文字或 markdown。依使用者指定的格式輸出；若指定的是陣列，請包成 {"questions": 陣列}。' },
+                        { role: 'user', content: promptText }
+                    ]
+                };
+                if (P.jsonMode) body.response_format = { type: 'json_object' };
                 options = {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-                    body: JSON.stringify({
-                        model,
-                        messages: [
-                            { role: 'system', content: '你是國小教師的出題助手。只輸出 JSON 物件，格式為 {"questions":[...]}，不要任何其他文字。' },
-                            { role: 'user', content: promptText }
-                        ],
-                        response_format: { type: 'json_object' }
-                    })
+                    body: JSON.stringify(body)
                 };
             }
 
@@ -698,17 +717,48 @@ ${JSON.stringify(list)}
             };
         }
 
+        // 查詢這把 Key 能用的文字模型，快速／便宜的排前面
+        async function discoverModels(P) {
+            try {
+                const r = await fetch(`${P.base}/models`, { headers: { 'Authorization': `Bearer ${apiKey}` } });
+                if (!r.ok) return [];
+                const data = await r.json();
+                const ids = (data.data || data.models || []).map(m => m.id || m).filter(id => typeof id === 'string');
+                const textModels = ids.filter(id =>
+                    /^(gpt|grok)/i.test(id) &&
+                    !/image|vision|audio|realtime|tts|transcribe|embed|search|imagine|video|code/i.test(id));
+                const score = id => (/fast|mini/i.test(id) ? 0 : 1) + (/reasoning/i.test(id) && !/non-reasoning/i.test(id) ? 1 : 0);
+                return textModels.sort((a, b) => score(a) - score(b) || b.localeCompare(a));
+            } catch (e) {
+                return [];
+            }
+        }
+
         // 呼叫 API：自動找能用的模型，錯誤訊息翻成看得懂的中文
         async function callGeminiRaw(promptText, retries = 3) {
             const P = PROVIDERS[provider];
             if (!apiKey) throw new Error(`請先在上方框框中輸入或貼上 ${P.name} API Key！`);
 
-            const models = workingModel
+            const queue = workingModel
                 ? [workingModel, ...P.models.filter(m => m !== workingModel)]
-                : P.models;
+                : [...P.models];
+            const tried = new Set();
+            let discovered = false;
 
             let lastMsg = '';
-            for (const model of models) {
+            while (true) {
+                let model = queue.shift();
+                // 預設名稱都失效：向 API 查詢這把 Key 可用的模型清單再試
+                if (!model && P.base && !discovered) {
+                    discovered = true;
+                    showLoadingIfOpen(`正在查詢 ${P.name} 可用的模型...`, '預設的模型名稱可能已經更新');
+                    queue.push(...(await discoverModels(P)).filter(m => !tried.has(m)).slice(0, 3));
+                    model = queue.shift();
+                }
+                if (!model) break;
+                if (tried.has(model)) continue;
+                tried.add(model);
+
                 for (let i = 0; i < retries; i++) {
                     const res = await requestModel(model, promptText);
 
@@ -723,8 +773,12 @@ ${JSON.stringify(list)}
                     const detail = (res.reason || '') + res.msg;
 
                     // Key 問題：不必重試、不必換模型
-                    if ((res.status === 400 && /API_KEY_INVALID|API key not valid/i.test(detail)) || res.status === 401) {
+                    if ((res.status === 400 && /API_KEY_INVALID|API key not valid|Incorrect API key|invalid api key/i.test(detail)) || res.status === 401) {
                         throw new Error(`API Key 無效：請重新複製完整的 ${P.name} Key（${P.keyHint}）。`);
+                    }
+                    // Grok 帳戶沒有額度
+                    if (/credits|spending limit/i.test(detail)) {
+                        throw new Error(`${P.name} 帳戶沒有可用額度：請到 console.x.ai 確認儲值或額度後再試。`);
                     }
                     if (res.status === 403) {
                         throw new Error("這把 API Key 沒有權限（可能被停用、限制了網域，或專案未開通）。原始訊息：" + res.msg);
@@ -737,7 +791,7 @@ ${JSON.stringify(list)}
                     }
 
                     // 模型不存在 / 已下架 / 帳號等級還用不到：換下一個模型
-                    if (res.status === 404 || /model_not_found|does not exist|do not have access/i.test(detail)) break;
+                    if (res.status === 404 || /model_not_found|model not found|invalid model|does not exist|do not have access/i.test(detail)) break;
 
                     // 超時：不重試同一個模型，直接換下一個
                     if (res.status === 408) {
