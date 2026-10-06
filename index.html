@@ -99,6 +99,9 @@
             <div id="topicTag" class="absolute top-3 left-4 text-xs font-bold text-indigo-400 bg-indigo-950/80 border border-indigo-800 px-2.5 py-1 rounded-md">
                 題庫：預設基礎題庫
             </div>
+            <div id="questionBadge" class="hidden absolute top-3 right-4 text-xs font-black text-emerald-300 bg-emerald-950/80 border border-emerald-600 px-2.5 py-1 rounded-md">
+                🔭 延伸挑戰題
+            </div>
             <h2 id="questionText" class="text-xl md:text-2xl font-bold leading-relaxed text-slate-100 mt-4">
                 請在設定選單中選擇或上傳題庫開始比賽！
             </h2>
@@ -170,6 +173,30 @@
                     </button>
                 </div>
                 <p id="connStatus" class="text-[11px] font-bold hidden"></p>
+            </div>
+
+            <!-- 出題設定：年級與延伸程度 -->
+            <div class="bg-slate-900/80 border border-emerald-500/40 p-4 rounded-xl text-left grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-emerald-300 mb-1.5">🎒 學生年級</label>
+                    <select id="gradeSelect" onchange="saveQuizSettings()" class="w-full bg-slate-800 border border-slate-600 p-2 rounded-lg text-xs font-bold text-slate-100 focus:outline-none focus:border-emerald-400">
+                        <option value="1">一年級</option>
+                        <option value="2">二年級</option>
+                        <option value="3">三年級</option>
+                        <option value="4">四年級</option>
+                        <option value="5">五年級</option>
+                        <option value="6">六年級</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-emerald-300 mb-1.5">🔭 延伸程度</label>
+                    <select id="extendSelect" onchange="saveQuizSettings()" class="w-full bg-slate-800 border border-slate-600 p-2 rounded-lg text-xs font-bold text-slate-100 focus:outline-none focus:border-emerald-400">
+                        <option value="0">只考課本</option>
+                        <option value="3">微延伸（約 3 題）</option>
+                        <option value="5">多延伸（約 5 題）</option>
+                    </select>
+                </div>
+                <p class="col-span-2 text-[11px] text-slate-400">出完題 AI 會再逐題檢查答案，有疑慮的題目自動剔除。</p>
             </div>
 
             <!-- 2. 核心功能：上傳教冊 PDF -->
@@ -300,24 +327,88 @@
             document.getElementById('rightWrong').innerText = stats.right.wrong;
         }
 
-        const JSON_FORMAT = `請嚴格以 JSON 格式輸出陣列，answer 為正確選項的索引（0~3），正確答案的位置請平均分散：
+        // ===== 出題設定（年級、延伸程度）=====
+        const GRADE_NAMES = ['', '一', '二', '三', '四', '五', '六'];
+        function getQuizSettings() {
+            return {
+                grade: Number(localStorage.getItem('quiz_grade') || 4),
+                extend: Number(localStorage.getItem('quiz_extend') ?? 3)
+            };
+        }
+        function saveQuizSettings() {
+            localStorage.setItem('quiz_grade', document.getElementById('gradeSelect').value);
+            localStorage.setItem('quiz_extend', document.getElementById('extendSelect').value);
+        }
+        function renderQuizSettings() {
+            const s = getQuizSettings();
+            document.getElementById('gradeSelect').value = String(s.grade);
+            document.getElementById('extendSelect').value = String(s.extend);
+        }
+
+        const JSON_FORMAT = `請嚴格以 JSON 格式輸出陣列，answer 為正確選項的索引（0~3），正確答案的位置請平均分散；
+source 標示題目來源："課本" 或 "延伸"：
                 [
                   {
                     "q": "題目敘述",
                     "options": ["選項0", "選項1", "選項2", "選項3"],
                     "answer": 0,
-                    "explanation": "一句話解析"
+                    "explanation": "一句話解析",
+                    "source": "課本"
                   }
                 ]`;
 
+        function extendRule(n, gradeName) {
+            if (!n) return `\n\n【出題範圍】10 題全部只能根據上述內容出題，不要超出範圍。source 一律填 "課本"。`;
+            return `\n\n【出題範圍】
+- 約 ${10 - n} 題直接根據課本內容出題（source 填 "課本"）。
+- 約 ${n} 題做「微加深加廣」（source 填 "延伸"）：從課本提到的概念往外延伸一小步，例如生活中的實際應用、相關的常見例子、為什麼會這樣的簡單原因。
+- 延伸題必須和課本主題直接相關，難度只比課本高一點，${gradeName}年級學生想一想就答得出來，不能需要背冷門知識。
+- 延伸題只能使用科學界／學界公認、教科書等級的事實；不確定、有爭議、會隨時間變動的內容（例如最新紀錄、精確統計數字）一律不要出。
+- 延伸題的 explanation 要說明它和課本哪個概念有關。`;
+        }
+
         function buildPrompt(src) {
+            const { grade, extend } = getQuizSettings();
+            const gradeName = GRADE_NAMES[grade];
+            const audience = `台灣國小${gradeName}年級學生`;
+            const quality = `\n\n【品質要求】
+- 用繁體中文、台灣用語，題目與選項的用字要符合${gradeName}年級程度，題目敘述盡量簡短。
+- 每題只有一個正確答案，三個錯誤選項要「看起來合理但明確是錯的」，不可以有兩個都算對的選項。
+- 避免「以上皆是」「以上皆非」，也避免否定句考法（例如「下列何者不是」）。`;
             const avoid = previousQs.length
                 ? `\n\n以下題目已經出過，請出完全不同的新題目，不要換句話說重複出：\n${previousQs.slice(-40).map(q => '- ' + q).join('\n')}`
                 : '';
             if (src.type === 'pdf') {
-                return `請根據以下教材內文，用繁體中文出 10 道適合國小學生的四選一選擇題，題目要涵蓋教材不同段落：\n\n${src.text}${avoid}\n\n${JSON_FORMAT}`;
+                return `請根據以下教材內文，為${audience}出 10 道四選一選擇題，題目要涵蓋教材不同段落。\n\n【教材內文】\n${src.text}${extendRule(extend, gradeName)}${quality}${avoid}\n\n${JSON_FORMAT}`;
             }
-            return `請針對主題「${src.topic}」，用繁體中文為國小學生設計 10 道全新且不重複的四選一單選題。${avoid}\n\n${JSON_FORMAT}`;
+            return `請針對主題「${src.topic}」，為${audience}設計 10 道全新且不重複的四選一單選題。難度要符合${gradeName}年級，可以適度生活化、有趣一點。source 一律填 "課本"。${quality}${avoid}\n\n${JSON_FORMAT}`;
+        }
+
+        // ===== 答案檢查：請 AI 當審題老師，獨立重做一遍 =====
+        async function verifyQuestions(questions) {
+            const { grade } = getQuizSettings();
+            const list = questions.map((q, i) => ({ id: i, q: q.q, options: q.options }));
+            const prompt = `你是嚴謹的國小${GRADE_NAMES[grade]}年級審題老師。請獨立作答下列四選一題目（不要猜出題者的意思，依照公認正確的知識判斷），並檢查每題品質。
+對每一題回報：
+- best：你認為唯一正確的選項索引（0~3）
+- ok：true 代表這題事實正確、只有一個正確答案、沒有爭議；只要有任何疑慮（事實可能錯誤、兩個選項都對、題意不清、超出${GRADE_NAMES[grade]}年級太多）就填 false
+
+題目：
+${JSON.stringify(list)}
+
+請嚴格以 JSON 格式輸出：{"results":[{"id":0,"best":1,"ok":true}]}`;
+            const raw = await callGeminiRaw(prompt);
+            const parsed = parseJsonLoose(raw);
+            const results = (Array.isArray(parsed) ? parsed : (parsed.results || []))
+                .filter(r => r && r.id !== undefined && r.best !== undefined);
+            // 審題結果格式不對：視為檢查失敗，交給外層保留原題
+            if (results.length < questions.length / 2) throw new Error('審題結果格式不符');
+            const byId = new Map(results.map(r => [Number(r.id), r]));
+            const kept = questions.filter((q, i) => {
+                const r = byId.get(i);
+                return r && r.ok === true && Number(r.best) === q.answer;
+            });
+            return { kept, removed: questions.length - kept.length };
         }
 
         async function generateFromSource(src, isRegen) {
@@ -330,15 +421,48 @@
                 document.getElementById('overlayDesc').innerText = `${base}（已等待 ${sec} 秒）`;
             }, 1000);
             try {
-                const generated = await callGeminiAI(buildPrompt(src));
+                let finalQs = [];
+                let removedTotal = 0;
+                let verifyFailed = false;
+
+                // 最多出兩輪：第一輪被剔除太多題時，補出一輪湊滿
+                for (let round = 0; round < 2 && finalQs.length < 8; round++) {
+                    const titleEl = document.getElementById('overlayTitle');
+                    titleEl.innerText = round === 0
+                        ? (isRegen ? `AI 正在用${label}重新出題...` : `AI 正在根據${label}出題...`)
+                        : `有幾題不夠可靠，AI 正在補題...`;
+
+                    const generated = await callGeminiAI(buildPrompt(src));
+                    previousQs.push(...generated.map(q => q.q));
+
+                    titleEl.innerText = "AI 審題老師正在逐題檢查答案...";
+                    try {
+                        const { kept, removed } = await verifyQuestions(generated);
+                        finalQs.push(...kept);
+                        removedTotal += removed;
+                    } catch (e) {
+                        // 檢查這一步失敗就保留原題，不讓整個出題卡住
+                        console.warn('答案檢查失敗', e);
+                        verifyFailed = true;
+                        finalQs.push(...generated);
+                        break;
+                    }
+                }
+
+                finalQs = finalQs.slice(0, 10);
                 clearInterval(ticker);
+                if (finalQs.length === 0) throw new Error("出的題目都沒通過答案檢查，請再按一次重新出題。");
+
                 lastSource = src;
-                currentQuestions = generated;
-                previousQs.push(...generated.map(q => q.q));
+                currentQuestions = finalQs;
                 document.getElementById('topicTag').innerText = src.type === 'pdf' ? `來源教冊：${src.name}` : `主題：${src.topic}`;
+                const extCount = finalQs.filter(q => q.source === '延伸').length;
+                const note = verifyFailed
+                    ? '（這次答案檢查沒跑成功，題目未經複查）'
+                    : (removedTotal ? `，已剔除 ${removedTotal} 題有疑慮的題目` : '，全部通過答案檢查');
                 showSuccessPrompt(
                     isRegen ? `${label}新題目已生成！` : `${label}出題完成！`,
-                    `AI 已生成 ${generated.length} 道題目，準備好就開始！`
+                    `共 ${finalQs.length} 題${extCount ? `（含 ${extCount} 題延伸題）` : ''}${note}`
                 );
             } catch (err) {
                 clearInterval(ticker);
@@ -367,6 +491,7 @@
         window.onload = function() {
             currentQuestions = [...defaultQuestions];
             renderProviderUI();
+            renderQuizSettings();
             openMenuModal();
         };
 
@@ -708,6 +833,7 @@
             document.getElementById('questionProgress').innerText = `第 ${idx + 1} / ${currentQuestions.length} 題`;
             document.getElementById('questionText').innerText = qData.q;
             document.getElementById('explainText').classList.add('hidden');
+            document.getElementById('questionBadge').classList.toggle('hidden', qData.source !== '延伸');
 
             ['leftPanel', 'rightPanel'].forEach(id =>
                 document.getElementById(id).classList.remove('panel-flash-ok', 'panel-flash-bad'));
