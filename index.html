@@ -3,1018 +3,471 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI智慧拔河大對決 - 課本教冊雙人搶答遊戲</title>
+    <title>AI 智慧雙人拔河大對決</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
     <style>
-        body {
-            font-family: 'Noto Sans TC', sans-serif;
-            user-select: none;
-            -webkit-user-select: none;
-            touch-action: manipulation;
-        }
-        .font-game {
-            font-family: 'ZCOOL KuaiLe', 'Noto Sans TC', cursive, sans-serif;
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #f1f5f9;
-            border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-        }
-        @keyframes ropeStrain {
-            0%, 100% { transform: translateY(0) rotate(0deg); }
-            25% { transform: translateY(-3px) rotate(-1deg); }
-            75% { transform: translateY(3px) rotate(1deg); }
-        }
-        .rope-pulling {
-            animation: ropeStrain 0.3s infinite ease-in-out;
-        }
-        @keyframes bounceGlow {
-            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(234, 179, 8, 0.4)); }
-            50% { transform: scale(1.05); filter: drop-shadow(0 0 15px rgba(234, 179, 8, 0.8)); }
-        }
-        .glow-active {
-            animation: bounceGlow 1.5s infinite;
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; user-select: none; }
+        .rope-transition { transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .pulse-anim { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-800 min-h-screen flex flex-col justify-between overflow-x-hidden select-none">
+<body class="bg-slate-900 text-white min-h-screen flex flex-col justify-between overflow-x-hidden">
 
-    <!-- Top Navigation Bar -->
-    <header class="bg-slate-800 border-b border-slate-700 text-white px-4 py-3 shadow-lg flex flex-wrap items-center justify-between gap-2 z-20">
-        <div class="flex items-center gap-3">
-            <div class="bg-gradient-to-r from-amber-500 to-red-500 p-2.5 rounded-2xl shadow-md text-2xl">
-                🪢
+    <!-- 上方控制區與標題 -->
+    <header class="p-4 bg-slate-800 border-b border-slate-700 shadow-md">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <span class="text-3xl">🪢</span>
+                <h1 class="text-2xl font-extrabold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-red-400 via-amber-300 to-blue-400">
+                    AI 智慧雙人拔河大對決
+                </h1>
             </div>
-            <div>
-                <h1 class="text-xl md:text-2xl font-black font-game text-amber-400 tracking-wide">AI 智慧拔河大對決</h1>
-                <p class="text-xs text-slate-400">雙人/雙隊知識競賽 ‧ 教冊AI自動出題</p>
-            </div>
-        </div>
 
-        <div class="flex items-center gap-2">
-            <button id="btn-open-ai-modal" onclick="openAiModal()" class="flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-sm px-3.5 py-2 rounded-xl shadow-md transition hover:scale-105 active:scale-95">
-                <span>🤖</span> 匯入課本 / AI 出題
-            </button>
-            <button id="btn-sound-toggle" onclick="toggleSound()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm px-3 py-2 rounded-xl transition">
-                🔊 音效: 開
-            </button>
-            <button onclick="resetGame()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm px-3 py-2 rounded-xl transition">
-                🔄 重置遊戲
-            </button>
+            <!-- 控制按鈕組 -->
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- API Key 設定 -->
+                <button onclick="promptApiKey()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs flex items-center gap-1.5 transition">
+                    <i class="fa-solid font-mono fa-key text-amber-400"></i> API Key 設定
+                </button>
+
+                <!-- 主題選擇（點擊直接讓 AI 生成全新題目） -->
+                <div class="relative">
+                    <select id="topicSelect" onchange="generateQuestionsByTopic(this.value)" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold text-amber-300 cursor-pointer focus:outline-none">
+                        <option value="" disabled selected>✨ 選擇 AI 主題（每次出題不同）</option>
+                        <option value="自然科學小常識">🌱 自然科學小常識</option>
+                        <option value="成語典故與成語接龍">📚 成語典故與活用</option>
+                        <option value="台灣歷史與地理人文">🗺️ 台灣歷史與地理</option>
+                        <option value="日常生活生活常識與安全">💡 日常生活與安全常識</option>
+                        <option value="國小基礎英文單字與文法">🔤 基礎英文單字與語感</option>
+                        <option value="趣味數學邏輯推理">🔢 趣味數學與邏輯腦筋急轉彎</option>
+                    </select>
+                </div>
+
+                <!-- 匯入 PDF / 文字按鈕 -->
+                <label class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold cursor-pointer transition flex items-center gap-1.5 shadow">
+                    <i class="fa-solid fa-file-pdf"></i> 匯入教冊 PDF / 檔案
+                    <input type="file" id="pdfInput" accept=".pdf,.txt" class="hidden" onchange="handleFileUpload(event)">
+                </label>
+            </div>
         </div>
     </header>
 
-    <!-- Main Tug of War Visual Stage -->
-    <main class="flex-1 flex flex-col justify-between p-2 md:p-4 max-w-7xl w-full mx-auto gap-3 relative">
-
-        <!-- Start Screen Overlay -->
-        <div id="start-overlay" class="absolute inset-0 bg-slate-900/95 backdrop-blur-md rounded-3xl z-30 flex flex-col items-center justify-center p-6 text-center border-2 border-amber-500/50 shadow-2xl transition-all duration-300">
-            <div class="text-6xl sm:text-7xl mb-3 animate-bounce">🪢</div>
-            <h2 class="text-2xl sm:text-4xl font-black font-game text-amber-400 mb-2 tracking-wide">AI 智慧拔河大對決</h2>
-            <p class="text-xs sm:text-sm text-slate-300 max-w-md mb-6 leading-relaxed">
-                當前題庫：<span id="start-topic-name" class="text-amber-300 font-bold">國小成語故事</span> (共 <span id="start-topic-count">10</span> 題)<br>
-                🔴 紅隊快捷鍵：<kbd class="bg-slate-800 border border-slate-600 px-1.5 py-0.5 rounded text-red-400 font-bold">Q W E R</kbd><br>
-                🔵 藍隊快捷鍵：<kbd class="bg-slate-800 border border-slate-600 px-1.5 py-0.5 rounded text-blue-400 font-bold">U I O P</kbd>
-            </p>
-            <div class="flex flex-wrap items-center justify-center gap-3">
-                <button onclick="startGame()" class="flex items-center gap-2 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 hover:from-amber-400 hover:to-red-400 text-slate-950 font-black text-lg px-8 py-3.5 rounded-2xl shadow-xl transition hover:scale-105 active:scale-95 glow-active cursor-pointer">
-                    <span>🚀</span> 開始遊戲 (Start Game)
-                </button>
-                <button onclick="openAiModal()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 hover:text-indigo-200 font-bold text-sm px-5 py-3.5 rounded-2xl border border-indigo-500/30 transition hover:scale-105 active:scale-95">
-                    <span>🤖</span> 匯入課本 / AI 出題
-                </button>
-            </div>
-            <p class="text-[11px] text-slate-500 mt-4">提示：準備完成後也可以按下鍵盤 <kbd class="bg-slate-800 border border-slate-700 px-1 rounded text-slate-400">Enter</kbd> 直接開始</p>
-        </div>
-
-        <!-- Scoreboard & Progress Banner -->
-        <div class="bg-slate-800/80 backdrop-blur-md rounded-2xl p-3 border border-slate-700 shadow-xl flex items-center justify-between text-white">
-            <!-- Team Red Status -->
-            <div class="flex items-center gap-3 w-1/3">
-                <div class="w-12 h-12 rounded-2xl bg-red-500/20 border-2 border-red-500 flex items-center justify-center text-2xl shadow-inner">
-                    🐻
+    <!-- 遊戲主舞台 -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 flex flex-col justify-between relative">
+        
+        <!-- 拔河比分與進度條 -->
+        <div class="bg-slate-800/80 backdrop-blur p-4 rounded-2xl border border-slate-700 mb-4 shadow-xl">
+            <div class="flex justify-between items-center mb-2 px-2">
+                <div class="flex items-center gap-2">
+                    <span class="w-4 h-4 rounded-full bg-red-500 inline-block animate-ping"></span>
+                    <span class="font-bold text-red-400 text-lg">紅隊（左邊）</span>
                 </div>
-                <div>
-                    <div id="team1-name" class="font-bold text-red-400 text-base md:text-lg">紅隊 (熊熊隊)</div>
-                    <div class="text-xs text-slate-400 flex items-center gap-2">
-                        <span>得分: <strong id="team1-score" class="text-amber-400 text-sm">0</strong></span>
-                        <span class="hidden sm:inline bg-slate-700 px-1.5 py-0.5 rounded text-[10px]">快捷鍵: Q W E R</span>
+                <div class="text-center">
+                    <span id="questionProgress" class="text-xs bg-slate-700 px-3 py-1 rounded-full text-slate-300 font-mono">第 1 / 10 題</span>
+                    <div id="timer" class="text-2xl font-black text-amber-400 mt-1">15</div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="font-bold text-blue-400 text-lg">藍隊（右邊）</span>
+                    <span class="w-4 h-4 rounded-full bg-blue-500 inline-block animate-ping"></span>
+                </div>
+            </div>
+
+            <!-- 拔河賽道 -->
+            <div class="relative h-20 bg-slate-900 rounded-xl overflow-hidden border-2 border-slate-700 flex items-center justify-center">
+                <!-- 中心線 -->
+                <div class="absolute inset-y-0 w-1 bg-amber-400 z-10 left-1/2 -translate-x-1/2 opacity-70"></div>
+                <div class="absolute top-1 left-1/2 -translate-x-1/2 text-[10px] text-amber-400 font-mono z-10">勝負中線</div>
+
+                <!-- 繩子與人物容器 -->
+                <div id="ropeContainer" class="absolute w-full flex items-center justify-center rope-transition" style="transform: translateX(0px);">
+                    <!-- 左隊選手 -->
+                    <div class="flex items-center gap-1 mr-[-10px]">
+                        <span class="text-4xl transform -scale-x-100">🤼</span>
+                        <span class="text-3xl transform -scale-x-100">🧒</span>
                     </div>
-                </div>
-            </div>
-
-            <!-- Round & Timer Info -->
-            <div class="text-center w-1/3">
-                <div class="text-xs font-bold text-amber-400 tracking-wider uppercase">ROUND</div>
-                <div class="text-xl md:text-3xl font-black font-game text-white"><span id="current-question-num">1</span> / <span id="total-questions-num">10</span></div>
-                <div class="w-full bg-slate-700 h-2 rounded-full mt-1 overflow-hidden">
-                    <div id="question-time-bar" class="bg-amber-400 h-full w-full transition-all duration-100 linear"></div>
-                </div>
-            </div>
-
-            <!-- Team Blue Status -->
-            <div class="flex items-center gap-3 w-1/3 justify-end text-right">
-                <div>
-                    <div id="team2-name" class="font-bold text-blue-400 text-base md:text-lg">藍隊 (虎虎隊)</div>
-                    <div class="text-xs text-slate-400 flex items-center gap-2 justify-end">
-                        <span class="hidden sm:inline bg-slate-700 px-1.5 py-0.5 rounded text-[10px]">快捷鍵: U I O P</span>
-                        <span>得分: <strong id="team2-score" class="text-amber-400 text-sm">0</strong></span>
+                    <!-- 繩子與紅結 -->
+                    <div class="w-2/3 h-4 bg-amber-700 border-y-2 border-amber-900 relative flex items-center justify-center shadow-inner">
+                        <div class="w-6 h-8 bg-red-600 rounded-sm shadow-md animate-bounce"></div>
                     </div>
-                </div>
-                <div class="w-12 h-12 rounded-2xl bg-blue-500/20 border-2 border-blue-500 flex items-center justify-center text-2xl shadow-inner">
-                    🐯
+                    <!-- 右隊選手 -->
+                    <div class="flex items-center gap-1 ml-[-10px]">
+                        <span class="text-3xl">🧒</span>
+                        <span class="text-4xl">🤼</span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Tug-Of-War Field Visualization -->
-        <div class="relative bg-gradient-to-b from-sky-300 via-sky-200 to-emerald-300 rounded-3xl p-4 border-4 border-slate-700 shadow-2xl overflow-hidden h-44 sm:h-52 flex flex-col justify-between">
-            <div class="absolute top-2 left-6 text-2xl opacity-80 animate-pulse">☁️</div>
-            <div class="absolute top-4 right-12 text-3xl opacity-80 animate-pulse">☁️</div>
-            <div class="absolute bottom-0 inset-x-0 h-16 bg-emerald-500 border-t-4 border-emerald-600"></div>
-
-            <div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-16 bg-amber-800/40 rounded-t-full border-t-2 border-amber-900/50 flex items-start justify-center pt-1 text-xs text-amber-900 font-bold">
-                中心線
+        <!-- 題目顯示區 -->
+        <div class="bg-slate-800/90 rounded-2xl p-6 border border-slate-700 shadow-2xl min-h-[140px] flex flex-col justify-center items-center text-center my-2 relative">
+            <div id="topicTag" class="absolute top-3 left-4 text-xs font-bold text-indigo-400 bg-indigo-950/80 border border-indigo-800 px-2.5 py-1 rounded-md">
+                主題：自然科學小常識
             </div>
-            <div class="absolute bottom-0 left-1/4 w-1 h-16 bg-red-500/60 border-l border-dashed border-red-600"></div>
-            <div class="absolute bottom-0 right-1/4 w-1 h-16 bg-blue-500/60 border-r border-dashed border-blue-600"></div>
-
-            <div id="pull-feedback" class="absolute top-3 left-1/2 -translate-x-1/2 bg-slate-900/80 text-amber-300 text-xs sm:text-sm font-bold px-4 py-1 rounded-full shadow-lg border border-amber-500/40 opacity-0 transition-opacity duration-300 pointer-events-none z-10">
-                預備～開拉！
-            </div>
-
-            <div class="relative w-full h-full flex items-center justify-center">
-                <div id="tug-stage" class="relative w-full max-w-4xl h-24 flex items-center transition-transform duration-500 ease-out">
-                    
-                    <div id="team1-characters" class="absolute left-2 sm:left-8 flex items-center gap-1 sm:gap-2 z-10 transition-transform duration-300">
-                        <span class="text-3xl sm:text-4xl filter drop-shadow animate-bounce">🐻</span>
-                        <span class="text-2xl sm:text-3xl filter drop-shadow">🐶</span>
-                        <span class="text-2xl sm:text-3xl filter drop-shadow">🦊</span>
-                    </div>
-
-                    <div id="rope-element" class="w-full h-4 sm:h-5 bg-amber-700 rounded-full border-2 border-amber-900 shadow-md relative flex items-center justify-center overflow-visible">
-                        <div class="w-full h-full bg-[linear-gradient(45deg,transparent_25%,rgba(0,0,0,0.15)_25%,rgba(0,0,0,0.15)_50%,transparent_50%,transparent_75%,rgba(0,0,0,0.15)_75%)] bg-[length:12px_12px]"></div>
-                        
-                        <div class="absolute w-6 sm:w-8 h-8 sm:h-10 bg-red-600 rounded-md border-2 border-amber-300 shadow-lg flex items-center justify-center text-white text-xs font-black z-20">
-                            🚩
-                        </div>
-                    </div>
-
-                    <div id="team2-characters" class="absolute right-2 sm:right-8 flex items-center gap-1 sm:gap-2 z-10 transition-transform duration-300">
-                        <span class="text-2xl sm:text-3xl filter drop-shadow">🐰</span>
-                        <span class="text-2xl sm:text-3xl filter drop-shadow">🐱</span>
-                        <span class="text-3xl sm:text-4xl filter drop-shadow animate-bounce">🐯</span>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-
-        <!-- Center Question Display Box -->
-        <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700 shadow-xl text-center relative overflow-hidden">
-            <div class="inline-block bg-indigo-900/60 text-indigo-300 text-xs font-bold px-3 py-1 rounded-full mb-2 border border-indigo-700">
-                <span id="question-category">題目類別: 國小綜合知識</span>
-            </div>
-            <h2 id="question-text" class="text-lg sm:text-2xl font-bold text-white leading-relaxed min-h-[3.5rem] flex items-center justify-center px-2">
-                請點擊右上角「🤖 匯入課本 / AI 出題」開始，或點擊開始按鈕直接進行搶答！
+            <h2 id="questionText" class="text-xl md:text-2xl font-bold leading-relaxed text-slate-100 mt-4">
+                題目載入中...
             </h2>
         </div>
 
-        <!-- Dual Interactive Answer Panels -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-            <!-- Team Red (Left) Answer Panel -->
-            <div id="panel-team1" class="bg-slate-800/90 rounded-2xl p-3 sm:p-4 border-2 border-red-500/50 shadow-xl flex flex-col gap-2 relative">
-                <div class="flex items-center justify-between border-b border-slate-700 pb-2">
-                    <div class="flex items-center gap-2">
-                        <span class="text-red-400 font-black text-sm sm:text-base">🔴 紅隊作答區</span>
-                        <span id="team1-status-badge" class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">等待答題</span>
-                    </div>
-                    <span class="text-xs text-slate-400">鍵盤 [Q] [W] [E] [R]</span>
+        <!-- 雙人搶答選項區（左隊 vs 右隊） -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 my-2">
+            <!-- 紅隊選項區（按鍵 Q, W, E, R） -->
+            <div class="bg-red-950/30 border-2 border-red-900/50 rounded-2xl p-4 shadow-lg flex flex-col gap-2">
+                <div class="text-xs font-bold text-red-400 flex justify-between items-center mb-1">
+                    <span>🔴 紅隊搶答區</span>
+                    <span class="text-[11px] opacity-80">按鍵：Q, W, E, R</span>
                 </div>
-
-                <div id="team1-options-container" class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                <div id="leftOptions" class="grid grid-cols-1 gap-2">
+                    <!-- JavaScript 動態生成按鈕 -->
                 </div>
             </div>
 
-            <!-- Team Blue (Right) Answer Panel -->
-            <div id="panel-team2" class="bg-slate-800/90 rounded-2xl p-3 sm:p-4 border-2 border-blue-500/50 shadow-xl flex flex-col gap-2 relative">
-                <div class="flex items-center justify-between border-b border-slate-700 pb-2">
-                    <div class="flex items-center gap-2">
-                        <span class="text-blue-400 font-black text-sm sm:text-base">🔵 藍隊作答區</span>
-                        <span id="team2-status-badge" class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">等待答題</span>
-                    </div>
-                    <span class="text-xs text-slate-400">鍵盤 [U] [I] [O] [P]</span>
+            <!-- 藍隊選項區（按鍵 U, I, O, P） -->
+            <div class="bg-blue-950/30 border-2 border-blue-900/50 rounded-2xl p-4 shadow-lg flex flex-col gap-2">
+                <div class="text-xs font-bold text-blue-400 flex justify-between items-center mb-1">
+                    <span>🔵 藍隊搶答區</span>
+                    <span class="text-[11px] opacity-80">按鍵：U, I, O, P</span>
                 </div>
-
-                <div id="team2-options-container" class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                <div id="rightOptions" class="grid grid-cols-1 gap-2">
+                    <!-- JavaScript 動態生成按鈕 -->
                 </div>
             </div>
-
         </div>
 
     </main>
 
-    <footer class="bg-slate-950 text-slate-500 text-xs text-center py-2 border-t border-slate-800">
-        AI 智慧課本拔河對決 ‧ 支援全本 PDF 教冊解析與 Gemini API 題庫生成
-    </footer>
-
-
-    <!-- MODAL: AI Question Generator & PDF Upload -->
-    <div id="modal-ai" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-3 hidden">
-        <div class="bg-slate-900 border border-slate-700 text-slate-100 rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
-            
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div class="flex items-center gap-2.5">
-                    <div class="bg-purple-600/20 text-purple-400 p-2 rounded-xl text-xl">🤖</div>
-                    <div>
-                        <h3 class="text-lg font-bold text-white">匯入課本 / AI 智慧自動出題</h3>
-                        <p class="text-xs text-slate-400">貼上教師手冊文字或上傳 PDF 全檔，AI 將自動出 10 題選擇題！</p>
-                    </div>
-                </div>
-                <button onclick="closeAiModal()" class="text-slate-400 hover:text-white text-xl p-1 rounded-lg">✕</button>
-            </div>
-
-            <div class="flex-1 overflow-y-auto custom-scrollbar my-4 space-y-4 pr-1">
-                <div class="bg-slate-800/70 rounded-2xl p-4 border border-slate-700">
-                    <label class="block text-sm font-bold text-purple-300 mb-1.5 flex items-center justify-between">
-                        <span>📄 方法一：上傳教師手冊/課本 PDF 全檔</span>
-                        <span class="text-[10px] text-purple-400 font-normal">支援解析整本 PDF 內文</span>
-                    </label>
-                    <input type="file" id="pdf-file-input" accept=".pdf" class="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-purple-600 file:text-white hover:file:bg-purple-500 cursor-pointer bg-slate-900 rounded-xl p-1 border border-slate-700" />
-                    <div id="pdf-status" class="text-xs text-amber-400 mt-2 flex items-center gap-1.5 hidden">
-                        <span class="animate-spin">⏳</span> <span id="pdf-status-text">正在準備讀取 PDF...</span>
-                    </div>
-                </div>
-
-                <div class="bg-slate-800/70 rounded-2xl p-4 border border-slate-700">
-                    <label class="block text-sm font-bold text-amber-300 mb-1.5 flex items-center justify-between">
-                        <span>📝 方法二：直接貼上課文或教冊內容</span>
-                        <span class="text-[10px] text-slate-400 font-normal">文字長度建議 > 50 字</span>
-                    </label>
-                    <textarea id="ai-text-input" rows="5" placeholder="例如：貼上《國語第四課》課文內容、科學實驗步驟、歷史事件說明或 PDF 提取的內文..." class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-purple-500 custom-scrollbar"></textarea>
-                </div>
-
-                <div class="bg-slate-800/70 rounded-2xl p-4 border border-slate-700">
-                    <label class="block text-sm font-bold text-sky-300 mb-2">
-                        💡 方法三：選擇內建快速預設主題
-                    </label>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        <button onclick="loadPresetTopic('idiom')" class="bg-slate-700 hover:bg-indigo-600 text-xs py-2 px-3 rounded-xl font-bold transition text-slate-200">
-                            📖 國小成語故事
-                        </button>
-                        <button onclick="loadPresetTopic('science')" class="bg-slate-700 hover:bg-emerald-600 text-xs py-2 px-3 rounded-xl font-bold transition text-slate-200">
-                            🌱 自然與生活科技
-                        </button>
-                        <button onclick="loadPresetTopic('math')" class="bg-slate-700 hover:bg-amber-600 text-xs py-2 px-3 rounded-xl font-bold transition text-slate-200">
-                            🔢 數學邏輯快問
-                        </button>
-                        <button onclick="loadPresetTopic('english')" class="bg-slate-700 hover:bg-rose-600 text-xs py-2 px-3 rounded-xl font-bold transition text-slate-200">
-                            🔤 基礎生活英語
-                        </button>
-                    </div>
-                </div>
-
-                <div class="flex items-center justify-between bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60">
-                    <span class="text-xs text-slate-300 font-bold">🎯 目標學階：</span>
-                    <select id="grade-level-select" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none">
-                        <option value="國小低年級 (1-2年級)">國小低年級 (1-2年級)</option>
-                        <option value="國小中年級 (3-4年級)" selected>國小中年級 (3-4年級)</option>
-                        <option value="國小高年級 (5-6年級)">國小高年級 (5-6年級)</option>
-                        <option value="國中七~九年級">國中七~九年級</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="flex items-center justify-end gap-3 border-t border-slate-800 pt-3">
-                <button onclick="closeAiModal()" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
-                    取消
-                </button>
-                <button id="btn-generate-ai" onclick="generateAiQuestions()" class="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg transition hover:scale-105 active:scale-95">
-                    <span>✨</span> 生成 10 題 AI 拔河考題
-                </button>
-            </div>
-
+    <!-- 載入與遮罩狀態區 -->
+    <div id="overlay" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center">
+        <div id="overlayContent" class="max-w-md w-full bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-2xl">
+            <div class="text-5xl mb-4">🪢</div>
+            <h3 id="overlayTitle" class="text-2xl font-bold mb-2 text-amber-400">AI 智慧拔河大對決</h3>
+            <p id="overlayDesc" class="text-slate-300 text-sm mb-6 leading-relaxed">
+                點擊下方按鈕或選取上方主題，讓 AI 即時生成全新題目開始對決！
+            </p>
+            <button id="overlayBtn" onclick="startGame()" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-lg shadow-lg transform transition active:scale-95">
+                🚀 開始遊戲 (Enter)
+            </button>
         </div>
     </div>
-
-
-    <!-- MODAL: Game Over / Victory Summary Modal -->
-    <div id="modal-victory" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-900 border-2 border-amber-500/60 text-slate-100 rounded-3xl max-w-xl w-full p-6 shadow-2xl text-center relative overflow-hidden">
-            
-            <div id="victory-badge" class="text-6xl mb-2 animate-bounce">🏆</div>
-            <h2 id="victory-title" class="text-2xl sm:text-3xl font-black font-game text-amber-400 mb-1">
-                紅隊 獲得最終勝利！
-            </h2>
-            <p id="victory-subtitle" class="text-xs sm:text-sm text-slate-400 mb-6">兩隊展現了精彩的知識對決！</p>
-
-            <div class="grid grid-cols-2 gap-4 mb-6">
-                <div class="bg-red-950/40 border border-red-500/40 rounded-2xl p-3 text-center">
-                    <div class="text-xs text-red-400 font-bold mb-1">🔴 紅隊最終得分</div>
-                    <div id="summary-team1-score" class="text-3xl font-black text-white">0</div>
-                    <div id="summary-team1-acc" class="text-[10px] text-slate-400 mt-1">正確率: 0%</div>
-                </div>
-
-                <div class="bg-blue-950/40 border border-blue-500/40 rounded-2xl p-3 text-center">
-                    <div class="text-xs text-blue-400 font-bold mb-1">🔵 藍隊最終得分</div>
-                    <div id="summary-team2-score" class="text-3xl font-black text-white">0</div>
-                    <div id="summary-team2-acc" class="text-[10px] text-slate-400 mt-1">正確率: 0%</div>
-                </div>
-            </div>
-
-            <div class="text-left bg-slate-800/80 rounded-2xl p-3 mb-6 border border-slate-700 max-h-48 overflow-y-auto custom-scrollbar text-xs">
-                <div class="font-bold text-amber-400 mb-2 flex items-center justify-between sticky top-0 bg-slate-800 py-1">
-                    <span>📋 題目對照與解析</span>
-                    <span class="text-[10px] text-slate-400">共 10 題</span>
-                </div>
-                <div id="questions-review-list" class="space-y-2">
-                </div>
-            </div>
-
-            <div class="flex items-center justify-center gap-3">
-                <button onclick="closeVictoryModal(); resetGame();" class="px-5 py-2.5 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
-                    🔄 再玩一次 (相同題目)
-                </button>
-                <button onclick="closeVictoryModal(); openAiModal();" class="px-5 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg transition">
-                    🤖 換新題目 / AI 再出題
-                </button>
-            </div>
-
-        </div>
-    </div>
-
 
     <script>
-        if (typeof pdfjsLib !== 'undefined') {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        }
-
-        class SoundManager {
-            constructor() {
-                this.ctx = null;
-                this.enabled = true;
-            }
-
-            init() {
-                if (!this.ctx) {
-                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-                    if (AudioCtx) this.ctx = new AudioCtx();
-                }
-                if (this.ctx && this.ctx.state === 'suspended') {
-                    this.ctx.resume();
-                }
-            }
-
-            playTone(freq, type = 'sine', duration = 0.15, vol = 0.2) {
-                if (!this.enabled) return;
-                try {
-                    this.init();
-                    if (!this.ctx) return;
-                    const osc = this.ctx.createOscillator();
-                    const gain = this.ctx.createGain();
-                    osc.type = type;
-                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
-                    osc.connect(gain);
-                    gain.connect(this.ctx.destination);
-                    osc.start();
-                    osc.stop(this.ctx.currentTime + duration);
-                } catch (e) {
-                    console.warn("Audio play error", e);
-                }
-            }
-
-            pullRopeSound() {
-                this.playTone(180, 'sawtooth', 0.1, 0.25);
-                setTimeout(() => this.playTone(280, 'triangle', 0.15, 0.2), 50);
-            }
-
-            correctSound() {
-                this.playTone(523.25, 'sine', 0.1, 0.2);
-                setTimeout(() => this.playTone(659.25, 'sine', 0.1, 0.2), 80);
-                setTimeout(() => this.playTone(783.99, 'sine', 0.2, 0.25), 160);
-            }
-
-            wrongSound() {
-                this.playTone(220, 'sawtooth', 0.15, 0.3);
-                setTimeout(() => this.playTone(180, 'sawtooth', 0.25, 0.3), 120);
-            }
-
-            victoryFanfare() {
-                const notes = [523.25, 659.25, 783.99, 1046.50];
-                notes.forEach((freq, idx) => {
-                    setTimeout(() => this.playTone(freq, 'triangle', 0.25, 0.3), idx * 120);
-                });
-            }
-        }
-
-        const soundMgr = new SoundManager();
-
-        let questionsBank = [];
+        // 全域變數
+        let apiKey = localStorage.getItem('gemini_api_key') || '';
+        let currentQuestions = [];
         let currentQuestionIdx = 0;
-        let ropePosition = 0; // -100 (Red Victory) to +100 (Blue Victory)
-        let team1Score = 0;
-        let team2Score = 0;
-        let team1CorrectCount = 0;
-        let team2CorrectCount = 0;
-
-        let questionTimer = null;
+        let ropePosition = 0; // -100 (左勝) 到 100 (右勝)
+        let timerInterval = null;
         let timeLeft = 15;
-        const TIME_PER_QUESTION = 15;
+        let isQuestionActive = false;
+        let leftAnswered = false;
+        let rightAnswered = false;
 
-        let team1Answered = false;
-        let team1Correct = false;
-        let team1TimeTaken = 0;
-
-        let team2Answered = false;
-        let team2Correct = false;
-        let team2TimeTaken = 0;
-
-        let isRoundLocked = false;
-        let gameStarted = false;
-        let currentTopicName = "國小成語故事";
-
-        const PRESET_TOPICS = {
-            idiom: [
-                { question: "「畫蛇添足」這句成語常用來比喻什麼？", options: ["做事多此一舉，反而弄巧成拙", "稱讚畫畫技巧高超", "形容蛇長得很有個性", "做事非常迅速有效率"], answer: 0, explanation: "畫蛇添足是指畫好了蛇又補畫腳，比喻做了多餘的事，反而把事情弄壞。" },
-                { question: "「井底之蛙」適合用來形容哪種人？", options: ["非常擅長游泳的人", "見識狹窄、眼界短淺的人", "很喜歡住在地下室的人", "非常有智慧的哲學家"], answer: 1, explanation: "井底之蛙只能看到井口大的天空，比喻眼界狹小、見識短淺的人。" },
-                { question: "下列哪一個成語的意思是「比喻只要有恆心，再難的事也能成功」？", options: ["水滴石穿", "守株待兔", "緣木求魚", "拔苗助長"], answer: 0, explanation: "水滴石穿指水不斷滴落能把石頭滴穿，比喻堅持到底就能成功。" },
-                { question: "「亡羊補牢」的意思是什麼？", options: ["羊逃跑了就把狼抓起來", "出了問題後及時補救，還算不晚", "羊死了就再買一隻新的", "把羊圈拆掉重新蓋房屋"], answer: 1, explanation: "亡羊補牢指羊丟失後才修補羊圈，比喻犯錯或受損後及時採取補救措施。" },
-                { question: "故事「守株待兔」中的農夫最後怎麼了？", options: ["成為全國最富有的人", "白白浪費時間，最後一無所獲", "養了成千上萬隻兔子", "發明了捉兔子的陷阱"], answer: 1, explanation: "守株待兔比喻希望不經過努力而僥倖獲得成功，最後往往一無所獲。" },
-                { question: "「雪中送炭」通常用來形容什麼樣的行為？", options: ["在下雪天賣木炭賺錢", "在別人困苦急需時給予適時的幫助", "把炭火丟到雪堆裡面滅火", "天氣很冷的時候堆雪人"], answer: 1, explanation: "雪中送炭比喻在別人極度困難時提供及時的幫助。" },
-                { question: "「胸有成竹」的意思是指什麼？", options: ["肚子裡吃了很多竹筍", "做事之前心中已有完整成熟的考量與把握", "把竹子畫在衣服胸口上", "非常喜歡吃竹子的大貓熊"], answer: 1, explanation: "胸有成竹指畫竹子前心中已有竹子的形象，比喻做事之前早已有了充分的準備和把握。" },
-                { question: "「飲水思源」提醒我們做人應該如何？", options: ["喝水時要注意水質衛生", "喝水要懂得感恩並記住水的來源與恩德", "買水要找便宜的地方買", "多喝水對身體健康有幫助"], answer: 1, explanation: "飲水思源比喻不忘本，懂得感恩報德。" },
-                { question: "「盲人摸象」這個故事主要在告訴我們什麼道理？", options: ["大象的皮非常堅硬", "盲人的嗅覺非常靈敏", "看事情只憑局部經驗就下結論，容易產生偏見", "摸大象是非常危險的事"], answer: 2, explanation: "盲人摸象比喻看問題不全面，只憑局部的了解就下結論。" },
-                { question: "「狐假虎威」意思是指什麼？", options: ["狐狸和老虎結為好朋友", "借用別人的勢力來威嚇壓迫他人", "狐狸穿上老虎的皮去獵食", "老虎被狐狸聰明的頭腦騙了"], answer: 1, explanation: "狐假虎威比喻憑藉有權勢者的威勢來欺壓他人。" }
-            ],
-            science: [
-                { question: "植物進行光合作用主要需要哪種氣體？", options: ["二氧化碳", "氧氣", "氮氣", "氦氣"], answer: 0, explanation: "植物光合作用吸收二氧化碳與水，利用日光產生葡萄糖與氧氣。" },
-                { question: "下列哪一種動物屬於「哺乳類」？", options: ["企鵝", "鯨魚", "綠蠵龜", "小丑魚"], answer: 1, explanation: "鯨魚雖然生活在水中，但用肺呼吸且為胎生哺乳，屬於哺乳類。" },
-                { question: "水的沸點在標準大氣壓下是多少攝氏度？", options: ["50℃", "80℃", "100℃", "120℃"], answer: 2, explanation: "在標準大氣壓下，純水的沸點為 100℃。" },
-                { question: "磁鐵的哪兩個極性會「互相吸引」？", options: ["N極與N極", "S極與S極", "N極與S極", "任意兩個極性皆會吸引"], answer: 2, explanation: "同性相斥，異性相吸，因此N極與S極會互相吸引。" },
-                { question: "地球繞太陽公轉一圈大約需要多久時間？", options: ["1天", "1個月", "1年", "10年"], answer: 2, explanation: "地球繞太陽公轉一圈的時間約為 365 天（即一年）。" },
-                { question: "彩虹形成的主要原因是陽光通過空氣中的水滴發生了什麼現象？", options: ["折射與反射", "燃爆現象", "聲波共振", "磁力吸引"], answer: 0, explanation: "陽光穿過水滴時發生折射與反射，將色散的七彩光線呈現出來。" },
-                { question: "下列何者屬於「再生能源」？", options: ["煤炭", "石油", "太陽能", "天然氣"], answer: 2, explanation: "太陽能源源不絕且不會耗盡，屬於再生能源。" },
-                { question: "人體主要的呼吸器官是什麼？", options: ["心臟", "肺臟", "胃部", "肝臟"], answer: 1, explanation: "肺臟是人體進行氣體交換（吸入氧氣、吐出二氧化碳）的主要器官。" },
-                { question: "聲音在下列哪一種介質中傳播速度最快？", options: ["空氣", "水", "鋼鐵（固體）", "真空（無介質）"], answer: 2, explanation: "聲音在固體中傳播最快，其次為液體，氣體最慢，真空無法傳播。" },
-                { question: "昆蟲的身體構造通常分為哪三個部分？", options: ["頭、胸、腹", "頭、手、腳", "頭、軀幹、尾巴", "殼、肉、足"], answer: 0, explanation: "昆蟲的身體結構明確分為頭部、胸部與腹部三個主要部分。" }
-            ],
-            math: [
-                { question: "Calculate: 15 + 28 = ?", options: ["33", "43", "45", "53"], answer: 1, explanation: "15 + 28 = 43。" },
-                { question: "一個正方形的邊長是 6 公分，請問它的面積是多少平方公分？", options: ["12", "24", "36", "48"], answer: 2, explanation: "正方形面積 = 邊長 × 邊長 = 6 × 6 = 36 平方公分。" },
-                { question: "Calculate: 8 × 9 = ?", options: ["64", "72", "81", "90"], answer: 1, explanation: "九九乘法表：八九七十二。" },
-                { question: "下列哪一個數是「偶數」？", options: ["13", "27", "42", "55"], answer: 2, explanation: "個位數為 0, 2, 4, 6, 8 的數為偶數，42 為偶數。" },
-                { question: "一打鉛筆有 12 枝，請問 5 打鉛筆共有多少枝？", options: ["50", "55", "60", "65"], answer: 2, explanation: "12 × 5 = 60 枝。" },
-                { question: "直角三角形中的「直角」是多少度？", options: ["45度", "60度", "90度", "180度"], answer: 2, explanation: "直角代表 90 度的角。" },
-                { question: "Calculate: 100 - 37 = ?", options: ["63", "73", "53", "67"], answer: 0, explanation: "100 - 37 = 63。" },
-                { question: "時針走了一整圈，代表經過了多少個小時？", options: ["1小時", "6小時", "12小時", "24小時"], answer: 2, explanation: "時鐘面上有 12 個數字，走一圈為 12 小時。" },
-                { question: "分數三分之二 (2/3) 與六分之四 (4/6) 的關係是？", options: ["2/3 比較大", "4/6 比較大", "兩者數值相等", "無法比較"], answer: 2, explanation: "4/6 約分後即為 2/3，兩者數值完全相等。" },
-                { question: "Calculate: 48 ÷ 6 = ?", options: ["6", "7", "8", "9"], answer: 2, explanation: "48 除以 6 等於 8。" }
-            ],
-            english: [
-                { question: "What is the English word for 「蘋果」?", options: ["Banana", "Apple", "Orange", "Grape"], answer: 1, explanation: "Apple 代表蘋果。" },
-                { question: "Which animal says 「Woof Woof」?", options: ["Cat", "Dog", "Duck", "Cow"], answer: 1, explanation: "Dog（狗）發出的叫聲是 Woof Woof。" },
-                { question: "What is the opposite of 「Hot」?", options: ["Warm", "Cold", "Big", "Dry"], answer: 1, explanation: "Hot（熱）的反義字是 Cold（冷）。" },
-                { question: "How many days are there in a week?", options: ["5 days", "6 days", "7 days", "10 days"], answer: 2, explanation: "一星期有 7 天 (Seven days)。" },
-                { question: "Complete the sentence: 「I _____ a student.」", options: ["am", "is", "are", "be"], answer: 0, explanation: "主詞 I 搭配的 be 動詞為 am。" },
-                { question: "What color do you get when you mix Red and Yellow?", options: ["Green", "Purple", "Orange", "Black"], answer: 2, explanation: "紅色加黃色會混合成橙色 (Orange)。" },
-                { question: "Which of the following is a fruit?", options: ["Carrot", "Strawberry", "Potato", "Broccoli"], answer: 1, explanation: "Strawberry（草莓）是水果。" },
-                { question: " What do you say when you leave?", options: ["Good morning", "Goodbye", "Thank you", "Hello"], answer: 1, explanation: "離別時說 Goodbye。" },
-                { question: "What is the English word for 「圖書館」?", options: ["Hospital", "School", "Library", "Park"], answer: 2, explanation: "Library 代表圖書館。" },
-                { question: "What season comes after Winter?", options: ["Spring", "Summer", "Autumn", "Winter"], answer: 0, explanation: "冬天 (Winter) 過後是春天 (Spring)。" }
-            ]
-        };
+        // 預設題目 (備用)
+        const defaultQuestions = [
+            { q: "下列哪一種動物屬於哺乳類動物？", options: ["企鵝", "海豚", "鱷魚", "綠蠵龜"], answer: 1, explanation: "海豚用肺呼吸且胎生哺乳，屬於哺乳類。" },
+            { q: "植物進行光合作用時，主要吸收哪種氣體？", options: ["氧氣", "二氧化碳", "氮氣", "氫氣"], answer: 1, explanation: "植物吸收二氧化碳與水，利用陽光製造養分與氧氣。" },
+            { q: "地球繞太陽公轉一圈大約需要多久時間？", options: ["1 天", "1 個月", "1 年", "10 年"], answer: 2, explanation: "地球公轉一圈約為 365 天（一年）。" },
+            { q: "水在常壓下加熱到幾度會沸騰變成水蒸氣？", options: ["50℃", "80℃", "100℃", "200℃"], answer: 2, explanation: "水的標準沸點為 100 攝氏度。" },
+            { q: "「百折不撓」這個成語常用來形容什麼樣的精神？", options: ["意志堅定不屈", "辦事效率極高", "性格十分隨和", "學習速度飛快"], answer: 0, explanation: "百折不撓指遭受挫折仍不屈服。" }
+        ];
 
         window.onload = function() {
-            questionsBank = JSON.parse(JSON.stringify(PRESET_TOPICS.idiom));
-            setupPdfUploader();
-            resetGame(false);
+            currentQuestions = [...defaultQuestions];
+            showStartOverlay("預設基礎題庫", "點擊開始按鈕即可開始拔河！兩隊可同時搶答。");
         };
 
-        function toggleSound() {
-            soundMgr.enabled = !soundMgr.enabled;
-            const btn = document.getElementById('btn-sound-toggle');
-            btn.innerText = soundMgr.enabled ? "🔊 音效: 開" : "🔇 音效: 關";
-        }
-
-        function startGame() {
-            gameStarted = true;
-            soundMgr.init();
-            document.getElementById('start-overlay').classList.add('hidden');
-            loadQuestion(currentQuestionIdx);
-        }
-
-        function loadPresetTopic(key) {
-            if (PRESET_TOPICS[key]) {
-                questionsBank = JSON.parse(JSON.stringify(PRESET_TOPICS[key]));
-                currentTopicName = getTopicName(key);
-                closeAiModal();
-                resetGame(false);
-                showPullFeedback(`已載入題庫：${currentTopicName}！請點擊開始遊戲！`);
+        function promptApiKey() {
+            const key = prompt("請輸入您的 Gemini API Key：", apiKey);
+            if (key !== null) {
+                apiKey = key.trim();
+                localStorage.setItem('gemini_api_key', apiKey);
+                alert(apiKey ? "API Key 設定成功！" : "已清除 API Key。");
             }
         }
 
-        function getTopicName(key) {
-            const names = { idiom: '國小成語故事', science: '自然與生活科技', math: '數學邏輯快問', english: '基礎生活英語' };
-            return names[key] || '預設主題';
-        }
+        // 選擇主題後，讓 AI 即時生成全新 10 題
+        async function generateQuestionsByTopic(topic) {
+            if (!topic) return;
 
-        async function generateAiQuestions() {
-            const textContent = document.getElementById('ai-text-input').value.trim();
-            const gradeLevel = document.getElementById('grade-level-select').value;
-            const btn = document.getElementById('btn-generate-ai');
+            showLoading(`AI 正在針對「${topic}」出題中...`, "請稍候 5~10 秒，AI 正在生成全新 10 道趣味題目");
 
-            if (!textContent || textContent.length < 15) {
-                alertCustom("請先在文字框貼上教冊/課文內容，或上傳 PDF 檔案！");
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerHTML = `<span>⏳</span> AI 研讀教材出題中...`;
-
-            const promptText = `請分析以下課本/教師手冊內容，為【${gradeLevel}】學童設計 10 題拔河大賽用的選擇題。\n` +
-                               `題目應涵蓋內容要點與重要觀念，每題必須有 4 個選項（只有 1 個正確，其餘 3 個為有吸引力的誘答項），並附帶簡短解析。\n\n` +
-                               `【課文與教材內容】:\n${textContent.substring(0, 15000)}`;
-
-            const payload = {
-                contents: [{ parts: [{ text: promptText }] }],
-                systemInstruction: {
-                    parts: [{ text: "你是一位充滿熱情的國小優良教師。請根據輸入內容，嚴格回傳 10 題高品質選擇題的 JSON 陣列。問題要生動好玩適合拔河競賽。" }]
-                },
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "ARRAY",
-                        items: {
-                            type: "OBJECT",
-                            properties: {
-                                question: { type: "STRING" },
-                                options: {
-                                    type: "ARRAY",
-                                    items: { type: "STRING" }
-                                },
-                                answer: { type: "INTEGER", description: "正確選項的索引 0, 1, 2, 3" },
-                                explanation: { type: "STRING" }
-                            },
-                            required: ["question", "options", "answer", "explanation"]
-                        }
-                    }
-                }
-            };
+            const prompt = `請針對主題「${topic}」，為國小/國中學生設計 10 道全新且不重複的四選一單選題。
+            請勿出重複題目。每次生成的題目請確保隨機與豐富度。
+            請嚴格以 JSON 格式輸出陣列，結構如下：
+            [
+              {
+                "q": "題目敘述",
+                "options": ["選項0", "選項1", "選項2", "選項3"],
+                "answer": 正確選項索引數字(0-3),
+                "explanation": "簡短解析"
+              }
+            ]`;
 
             try {
-                const apiKey = ""; // Managed runtime key
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const result = await response.json();
-                const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-                if (jsonText) {
-                    const parsedQuestions = JSON.parse(jsonText);
-                    if (Array.isArray(parsedQuestions) && parsedQuestions.length > 0) {
-                        questionsBank = parsedQuestions;
-                        currentTopicName = "AI 智慧教材生成題庫";
-                        closeAiModal();
-                        resetGame(false);
-                        showPullFeedback("🎉 AI 考題生成成功！點擊「開始遊戲」即可開戰！");
-                        btn.disabled = false;
-                        btn.innerHTML = `<span>✨</span> 生成 10 題 AI 拔河考題`;
-                        return;
-                    }
+                const generated = await callGeminiAI(prompt);
+                if (generated && generated.length > 0) {
+                    currentQuestions = generated;
+                    document.getElementById('topicTag').innerText = `主題：${topic}`;
+                    showStartOverlay(`主題：${topic}`, `AI 已為您成功生成 ${generated.length} 道全新題目！`);
+                } else {
+                    throw new Error("生成結果格式不符");
                 }
-                throw new Error("Invalid output structure");
             } catch (err) {
-                console.error("Gemini API Error:", err);
-                alertCustom("AI 出題時發生錯誤，請稍後重試或微調輸入內容。");
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = `<span>✨</span> 生成 10 題 AI 拔河考題`;
+                alert("AI 出題失敗：" + err.message + "\n已切回備用題庫。");
+                currentQuestions = [...defaultQuestions];
+                showStartOverlay("預設題庫", "點擊開始遊戲。");
             }
         }
 
-        function resetGame(autoStart = false) {
+        // 上傳 PDF 檔案解析出題
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showLoading("正在讀取檔案與解析內文...", "準備將教材傳送給 AI 出題");
+
+            try {
+                let textContent = "";
+                if (file.name.endsWith('.pdf')) {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        showLoading(`正在讀取 PDF 頁數 (${i}/${pdf.numPages})...`, "萃取教材文字中");
+                        const page = await pdf.getPage(i);
+                        const content = await page.getTextContent();
+                        textContent += content.items.map(item => item.str).join(" ") + "\n";
+                    }
+                } else {
+                    textContent = await file.text();
+                }
+
+                textContent = textContent.slice(0, 15000); // 截取前 15,000 字精華
+
+                showLoading("AI 正在閱讀教材並生成 10 題測驗...", "分析重點內容中");
+
+                const prompt = `請根據以下教材內文，出 10 道適合學生的四選一選擇題：\n\n${textContent}\n\n
+                請嚴格以 JSON 格式輸出陣列：
+                [
+                  {
+                    "q": "問題",
+                    "options": ["選項0", "選項1", "選項2", "選項3"],
+                    "answer": 0,
+                    "explanation": "解析"
+                  }
+                ]`;
+
+                const generated = await callGeminiAI(prompt);
+                if (generated && generated.length > 0) {
+                    currentQuestions = generated;
+                    document.getElementById('topicTag').innerText = `來源：${file.name}`;
+                    showStartOverlay(`課本彙編：${file.name}`, `AI 已針對教材內容生成 ${generated.length} 題測驗！`);
+                } else {
+                    throw new Error("解析結果無有效題目");
+                }
+            } catch (err) {
+                alert("檔案讀取或出題失敗：" + err.message);
+                hideOverlay();
+            }
+        }
+
+        // 呼叫 Gemini API
+        async function callGeminiAI(promptText) {
+            if (!apiKey) {
+                const inputKey = prompt("請輸入 Gemini API Key 以使用 AI 出題功能：");
+                if (!inputKey) throw new Error("缺少 API Key");
+                apiKey = inputKey.trim();
+                localStorage.setItem('gemini_api_key', apiKey);
+            }
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: promptText }] }],
+                    generationConfig: { responseMimeType: "application/json" }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`API 請求錯誤 (${response.status})`);
+            }
+
+            const data = await response.json();
+            const rawText = data.candidates[0].content.parts[0].text;
+            return JSON.parse(rawText);
+        }
+
+        // 開始遊戲
+        function startGame() {
+            hideOverlay();
             currentQuestionIdx = 0;
             ropePosition = 0;
-            team1Score = 0;
-            team2Score = 0;
-            team1CorrectCount = 0;
-            team2CorrectCount = 0;
-            clearInterval(questionTimer);
-
-            updateRopeVisual();
-            updateScoresVisual();
-
-            if (!questionsBank || questionsBank.length === 0) {
-                questionsBank = JSON.parse(JSON.stringify(PRESET_TOPICS.idiom));
-            }
-
-            if (autoStart) {
-                startGame();
-            } else {
-                gameStarted = false;
-                document.getElementById('start-overlay').classList.remove('hidden');
-                document.getElementById('start-topic-name').innerText = currentTopicName;
-                document.getElementById('start-topic-count').innerText = questionsBank.length;
-            }
+            updateRopeUI();
+            loadQuestion(0);
         }
 
+        // 載入單一題目
         function loadQuestion(idx) {
-            if (idx >= questionsBank.length) {
+            if (idx >= currentQuestions.length) {
                 endGame();
                 return;
             }
 
+            isQuestionActive = true;
+            leftAnswered = false;
+            rightAnswered = false;
             currentQuestionIdx = idx;
-            isRoundLocked = false;
-            team1Answered = false;
-            team1Correct = false;
-            team2Answered = false;
-            team2Correct = false;
 
-            const q = questionsBank[idx];
-            document.getElementById('current-question-num').innerText = idx + 1;
-            document.getElementById('total-questions-num').innerText = questionsBank.length;
-            document.getElementById('question-category').innerText = `題目類別: ${currentTopicName}`;
-            document.getElementById('question-text').innerText = q.question;
+            const qData = currentQuestions[idx];
+            document.getElementById('questionProgress').innerText = `第 ${idx + 1} / ${currentQuestions.length} 題`;
+            document.getElementById('questionText').innerText = qData.q;
 
-            renderTeamOptions('team1', q.options);
-            renderTeamOptions('team2', q.options);
+            // 渲染左隊與右隊選項
+            const keysLeft = ['Q', 'W', 'E', 'R'];
+            const keysRight = ['U', 'I', 'O', 'P'];
 
-            resetTeamBadges();
-            startQuestionTimer();
+            renderOptionGroup('leftOptions', qData.options, keysLeft, 'left');
+            renderOptionGroup('rightOptions', qData.options, keysRight, 'right');
+
+            // 開始倒數計時
+            startTimer();
         }
 
-        function renderTeamOptions(teamId, options) {
-            const container = document.getElementById(`${teamId}-options-container`);
+        function renderOptionGroup(containerId, options, keys, team) {
+            const container = document.getElementById(containerId);
             container.innerHTML = '';
-
-            const keys = teamId === 'team1' ? ['Q', 'W', 'E', 'R'] : ['U', 'I', 'O', 'P'];
-            const labels = ['A', 'B', 'C', 'D'];
-            const hoverClass = teamId === 'team1' ? 'hover:bg-red-600/30 hover:border-red-400' : 'hover:bg-blue-600/30 hover:border-blue-400';
-
-            options.forEach((optText, optIdx) => {
+            options.forEach((opt, i) => {
                 const btn = document.createElement('button');
-                btn.className = `option-btn w-full text-left bg-slate-900/80 border border-slate-700/80 p-2.5 sm:p-3 rounded-xl transition-all duration-150 flex items-start gap-2 text-xs sm:text-sm text-slate-200 ${hoverClass} active:scale-95 cursor-pointer`;
-                btn.dataset.team = teamId;
-                btn.dataset.index = optIdx;
-
+                btn.className = `w-full text-left p-3 rounded-xl border text-sm font-bold flex items-center justify-between transition ${
+                    team === 'left' 
+                    ? 'bg-slate-800 hover:bg-red-900/40 border-slate-700 hover:border-red-500' 
+                    : 'bg-slate-800 hover:bg-blue-900/40 border-slate-700 hover:border-blue-500'
+                }`;
                 btn.innerHTML = `
-                    <span class="font-black text-xs px-2 py-0.5 rounded bg-slate-800 text-amber-400 border border-slate-700 shrink-0">
-                        ${labels[optIdx]} <span class="text-[10px] opacity-60">(${keys[optIdx]})</span>
-                    </span>
-                    <span class="flex-1 font-medium leading-snug">${optText}</span>
+                    <span><b class="text-amber-400 mr-2">${i+1}.</b> ${opt}</span>
+                    <span class="text-[10px] bg-slate-700 px-2 py-0.5 rounded font-mono">${keys[i]}</span>
                 `;
-
-                btn.onclick = () => handleAnswer(teamId, optIdx);
+                btn.onclick = () => handleAnswer(team, i);
                 container.appendChild(btn);
             });
         }
 
-        function startQuestionTimer() {
-            clearInterval(questionTimer);
-            timeLeft = TIME_PER_QUESTION;
-            const bar = document.getElementById('question-time-bar');
-            bar.style.width = '100%';
+        function startTimer() {
+            clearInterval(timerInterval);
+            timeLeft = 15;
+            document.getElementById('timer').innerText = timeLeft;
 
-            questionTimer = setInterval(() => {
-                timeLeft -= 0.1;
-                const percentage = Math.max(0, (timeLeft / TIME_PER_QUESTION) * 100);
-                bar.style.width = `${percentage}%`;
-
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                document.getElementById('timer').innerText = timeLeft;
                 if (timeLeft <= 0) {
-                    clearInterval(questionTimer);
-                    handleTimeOut();
+                    clearInterval(timerInterval);
+                    nextQuestion();
                 }
-            }, 100);
+            }, 1000);
         }
 
-        function handleAnswer(teamId, selectedOptIdx) {
-            if (!gameStarted || isRoundLocked) return;
+        function handleAnswer(team, optionIdx) {
+            if (!isQuestionActive) return;
 
-            const currentQ = questionsBank[currentQuestionIdx];
-            const isCorrect = (selectedOptIdx === currentQ.answer);
-            const timeTaken = TIME_PER_QUESTION - timeLeft;
+            const qData = currentQuestions[currentQuestionIdx];
+            const isCorrect = (optionIdx === qData.answer);
 
-            soundMgr.init();
-
-            if (teamId === 'team1' && !team1Answered) {
-                team1Answered = true;
-                team1Correct = isCorrect;
-                team1TimeTaken = timeTaken;
-                updateTeamBadge('team1', isCorrect);
-                disableTeamOptions('team1', selectedOptIdx, isCorrect, currentQ.answer);
-            } else if (teamId === 'team2' && !team2Answered) {
-                team2Answered = true;
-                team2Correct = isCorrect;
-                team2TimeTaken = timeTaken;
-                updateTeamBadge('team2', isCorrect);
-                disableTeamOptions('team2', selectedOptIdx, isCorrect, currentQ.answer);
+            if (team === 'left' && !leftAnswered) {
+                leftAnswered = true;
+                disableOptionGroup('leftOptions');
+                if (isCorrect) ropePosition -= 20; // 紅隊向左拉
+            } else if (team === 'right' && !rightAnswered) {
+                rightAnswered = true;
+                disableOptionGroup('rightOptions');
+                if (isCorrect) ropePosition += 20; // 藍隊向右拉
             }
 
-            if (isCorrect) soundMgr.correctSound();
-            else soundMgr.wrongSound();
+            updateRopeUI();
 
-            if (team1Answered && team2Answered) {
-                resolveRound();
+            // 兩隊皆已作答或拉到底則進入下一題
+            if (leftAnswered && rightAnswered) {
+                setTimeout(nextQuestion, 1000);
             }
         }
 
-        function handleTimeOut() {
-            if (isRoundLocked) return;
-            showPullFeedback("⏰ 時間到！進行結算！");
-            resolveRound();
+        function disableOptionGroup(containerId) {
+            const btns = document.querySelectorAll(`#${containerId} button`);
+            btns.forEach(btn => btn.disabled = true);
         }
 
-        function resolveRound() {
-            isRoundLocked = true;
-            clearInterval(questionTimer);
+        function updateRopeUI() {
+            // 限制繩子位置在 -120px 到 +120px 之間
+            ropePosition = Math.max(-120, Math.min(120, ropePosition));
+            document.getElementById('ropeContainer').style.transform = `translateX(${ropePosition}px)`;
+        }
 
-            const currentQ = questionsBank[currentQuestionIdx];
-            let pullDelta = 0;
-
-            if (team1Correct && !team2Correct) {
-                pullDelta = -20;
-                team1Score += 100;
-                team1CorrectCount++;
-                showPullFeedback("🔴 紅隊答對！大力拉向左邊！🪢");
-            } else if (!team1Correct && team2Correct) {
-                pullDelta = 20;
-                team2Score += 100;
-                team2CorrectCount++;
-                showPullFeedback("🔵 藍隊答對！大力拉向右邊！🪢");
-            } else if (team1Correct && team2Correct) {
-                team1CorrectCount++;
-                team2CorrectCount++;
-                if (team1TimeTaken < team2TimeTaken - 0.2) {
-                    pullDelta = -15;
-                    team1Score += 120;
-                    team2Score += 50;
-                    showPullFeedback("⚡ 紅隊答得更快！獲得額外拉力！");
-                } else if (team2TimeTaken < team1TimeTaken - 0.2) {
-                    pullDelta = 15;
-                    team1Score += 50;
-                    team2Score += 120;
-                    showPullFeedback("⚡ 藍隊答得更快！獲得額外拉力！");
-                } else {
-                    team1Score += 80;
-                    team2Score += 80;
-                    showPullFeedback("🤝 兩隊速度相當，勢均力敵！");
-                }
+        function nextQuestion() {
+            clearInterval(timerInterval);
+            if (currentQuestionIdx + 1 < currentQuestions.length) {
+                loadQuestion(currentQuestionIdx + 1);
             } else {
-                showPullFeedback("❌ 兩隊皆未答對，繩子保持不動！");
-            }
-
-            soundMgr.pullRopeSound();
-            ropePosition += pullDelta;
-            ropePosition = Math.max(-100, Math.min(100, ropePosition));
-
-            updateRopeVisual();
-            updateScoresVisual();
-
-            revealAnswers(currentQ.answer);
-
-            setTimeout(() => {
-                if (Math.abs(ropePosition) >= 80) {
-                    endGame();
-                } else {
-                    currentQuestionIdx++;
-                    loadQuestion(currentQuestionIdx);
-                }
-            }, 2200);
-        }
-
-        function updateRopeVisual() {
-            const stage = document.getElementById('tug-stage');
-            const rope = document.getElementById('rope-element');
-            
-            const pixelShift = (ropePosition / 100) * 160;
-            stage.style.transform = `translateX(${pixelShift}px)`;
-
-            rope.classList.add('rope-pulling');
-            setTimeout(() => rope.classList.remove('rope-pulling'), 600);
-        }
-
-        function updateScoresVisual() {
-            document.getElementById('team1-score').innerText = team1Score;
-            document.getElementById('team2-score').innerText = team2Score;
-        }
-
-        function updateTeamBadge(teamId, isCorrect) {
-            const badge = document.getElementById(`${teamId}-status-badge`);
-            if (isCorrect) {
-                badge.className = "text-xs bg-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30";
-                badge.innerText = "✓ 已完成作答";
-            } else {
-                badge.className = "text-xs bg-rose-500/20 text-rose-400 font-bold px-2 py-0.5 rounded-full border border-rose-500/30";
-                badge.innerText = "✗ 作答錯誤";
+                endGame();
             }
         }
 
-        function resetTeamBadges() {
-            const b1 = document.getElementById('team1-status-badge');
-            const b2 = document.getElementById('team2-status-badge');
-            b1.className = "text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full";
-            b1.innerText = "等待答題";
-            b2.className = "text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full";
-            b2.innerText = "等待答題";
+        function endGame() {
+            isQuestionActive = false;
+            let winnerText = "🤝 雙方勢均力敵，打成平手！";
+            if (ropePosition < -20) winnerText = "🔴 恭喜【紅隊】獲得最終勝利！";
+            else if (ropePosition > 20) winnerText = "🔵 恭喜【藍隊】獲得最終勝利！";
+
+            showStartOverlay("比賽結束！", winnerText);
+            document.getElementById('overlayBtn').innerText = "🔄 重新一局";
         }
 
-        function disableTeamOptions(teamId, selectedOptIdx, isCorrect, correctOptIdx) {
-            const container = document.getElementById(`${teamId}-options-container`);
-            const btns = container.querySelectorAll('.option-btn');
-
-            btns.forEach((btn, idx) => {
-                btn.disabled = true;
-                btn.classList.add('opacity-50', 'cursor-not-allowed');
-
-                if (idx === selectedOptIdx) {
-                    if (isCorrect) {
-                        btn.classList.remove('bg-slate-900/80', 'opacity-50');
-                        btn.classList.add('bg-emerald-600/40', 'border-emerald-400', 'text-white', 'scale-105');
-                    } else {
-                        btn.classList.remove('bg-slate-900/80', 'opacity-50');
-                        btn.classList.add('bg-rose-600/40', 'border-rose-400', 'text-white');
-                    }
-                }
-            });
-        }
-
-        function revealAnswers(correctOptIdx) {
-            ['team1', 'team2'].forEach(teamId => {
-                const container = document.getElementById(`${teamId}-options-container`);
-                const btns = container.querySelectorAll('.option-btn');
-                if (btns[correctOptIdx]) {
-                    btns[correctOptIdx].classList.remove('opacity-50');
-                    btns[correctOptIdx].classList.add('bg-emerald-600/30', 'border-emerald-400', 'ring-2', 'ring-emerald-400/50');
-                }
-            });
-        }
-
-        function showPullFeedback(text) {
-            const fb = document.getElementById('pull-feedback');
-            fb.innerText = text;
-            fb.style.opacity = '1';
-            setTimeout(() => {
-                fb.style.opacity = '0';
-            }, 1800);
-        }
-
+        // 鍵盤快捷鍵 (QWER & UIOP, Enter 開始)
         document.addEventListener('keydown', (e) => {
-            const key = e.key.toUpperCase();
-
-            if (e.key === 'Enter' && !gameStarted) {
-                const modalAi = document.getElementById('modal-ai');
-                const modalVictory = document.getElementById('modal-victory');
-                if (modalAi.classList.contains('hidden') && modalVictory.classList.contains('hidden')) {
+            if (e.key === 'Enter') {
+                const overlay = document.getElementById('overlay');
+                if (!overlay.classList.contains('hidden')) {
                     startGame();
                     return;
                 }
             }
 
-            if (!gameStarted || isRoundLocked) return;
-
-            const t1Keys = ['Q', 'W', 'E', 'R'];
-            if (t1Keys.includes(key)) {
-                const optIdx = t1Keys.indexOf(key);
-                handleAnswer('team1', optIdx);
-            }
-
-            const t2Keys = ['U', 'I', 'O', 'P'];
-            if (t2Keys.includes(key)) {
-                const optIdx = t2Keys.indexOf(key);
-                handleAnswer('team2', optIdx);
+            if (!isQuestionActive) return;
+            const k = e.key.toUpperCase();
+            if (['Q','W','E','R'].includes(k)) {
+                handleAnswer('left', ['Q','W','E','R'].indexOf(k));
+            } else if (['U','I','O','P'].includes(k)) {
+                handleAnswer('right', ['U','I','O','P'].indexOf(k));
             }
         });
 
-        function endGame() {
-            clearInterval(questionTimer);
-            soundMgr.victoryFanfare();
-
-            let winnerText = "";
-            let victoryBadge = "🏆";
-
-            if (ropePosition < 0) {
-                winnerText = "🔴 紅隊 (熊熊隊) 贏得拔河勝利！";
-                victoryBadge = "🐻🏆";
-            } else if (ropePosition > 0) {
-                winnerText = "🔵 藍隊 (虎虎隊) 贏得拔河勝利！";
-                victoryBadge = "🐯🏆";
-            } else {
-                if (team1Score > team2Score) winnerText = "🔴 紅隊 憑藉較高得分獲勝！";
-                else if (team2Score > team1Score) winnerText = "🔵 藍隊 憑藉較高得分獲勝！";
-                else winnerText = "🤝 兩隊表現相當，平手！";
-            }
-
-            document.getElementById('victory-title').innerText = winnerText;
-            document.getElementById('victory-badge').innerText = victoryBadge;
-
-            document.getElementById('summary-team1-score').innerText = team1Score;
-            document.getElementById('summary-team2-score').innerText = team2Score;
-
-            const t1Acc = Math.round((team1CorrectCount / questionsBank.length) * 100);
-            const t2Acc = Math.round((team2CorrectCount / questionsBank.length) * 100);
-
-            document.getElementById('summary-team1-acc').innerText = `正確率: ${t1Acc}% (${team1CorrectCount}/${questionsBank.length})`;
-            document.getElementById('summary-team2-acc').innerText = `正確率: ${t2Acc}% (${team2CorrectCount}/${questionsBank.length})`;
-
-            const reviewList = document.getElementById('questions-review-list');
-            reviewList.innerHTML = '';
-
-            questionsBank.forEach((q, idx) => {
-                const item = document.createElement('div');
-                item.className = "bg-slate-900/90 p-2.5 rounded-xl border border-slate-700/80";
-                item.innerHTML = `
-                    <div class="font-bold text-slate-200">${idx + 1}. ${q.question}</div>
-                    <div class="text-emerald-400 font-bold mt-1">✓ 正確答案：${q.options[q.answer]}</div>
-                    <div class="text-slate-400 text-[11px] mt-0.5">💡 解析：${q.explanation || '無'}</div>
-                `;
-                reviewList.appendChild(item);
-            });
-
-            if (typeof confetti === 'function') {
-                confetti({
-                    particleCount: 100,
-                    spread: 70,
-                    origin: { y: 0.6 }
-                });
-            }
-
-            document.getElementById('modal-victory').classList.remove('hidden');
+        // 介面遮罩控制
+        function showStartOverlay(title, desc) {
+            document.getElementById('overlayTitle').innerText = title;
+            document.getElementById('overlayDesc').innerText = desc;
+            document.getElementById('overlayBtn').innerText = "🚀 開始遊戲 (Enter)";
+            document.getElementById('overlayBtn').style.display = "block";
+            document.getElementById('overlay').classList.remove('hidden');
         }
 
-        function openAiModal() {
-            document.getElementById('modal-ai').classList.remove('hidden');
+        function showLoading(title, desc) {
+            document.getElementById('overlayTitle').innerText = title;
+            document.getElementById('overlayDesc').innerText = desc;
+            document.getElementById('overlayBtn').style.display = "none";
+            document.getElementById('overlay').classList.remove('hidden');
         }
 
-        function closeAiModal() {
-            document.getElementById('modal-ai').classList.add('hidden');
-        }
-
-        function closeVictoryModal() {
-            document.getElementById('modal-victory').classList.add('hidden');
-        }
-
-        function alertCustom(msg) {
-            const popup = document.createElement('div');
-            popup.className = 'fixed top-10 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-950 font-bold px-6 py-3 rounded-2xl shadow-2xl z-50 transition-all duration-300 border-2 border-amber-300 text-sm';
-            popup.innerText = msg;
-            document.body.appendChild(popup);
-            setTimeout(() => {
-                popup.style.opacity = '0';
-                setTimeout(() => popup.remove(), 300);
-            }, 2500);
-        }
-
-        function setupPdfUploader() {
-            const fileInput = document.getElementById('pdf-file-input');
-            if (!fileInput) return;
-
-            fileInput.addEventListener('change', async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                const statusEl = document.getElementById('pdf-status');
-                const statusText = document.getElementById('pdf-status-text');
-                statusEl.classList.remove('hidden');
-                statusText.innerText = "正在解析 PDF 文字內容中...";
-
-                try {
-                    const arrayBuffer = await file.arrayBuffer();
-                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                    let fullText = "";
-
-                    for (let i = 1; i <= pdf.numPages; i++) {
-                        statusText.innerText = `正在讀取第 ${i} / ${pdf.numPages} 頁...`;
-                        const page = await pdf.getPage(i);
-                        const textContent = await page.getTextContent();
-                        const pageText = textContent.items.map(item => item.str).join(" ");
-                        fullText += pageText + "\n";
-                    }
-
-                    document.getElementById('ai-text-input').value = fullText.trim();
-                    statusText.innerText = `成功提取 ${pdf.numPages} 頁內容！已自動填入下方文字框。`;
-                } catch (err) {
-                    console.error("PDF Parsing error:", err);
-                    statusText.innerText = "PDF 解析失敗，請確認檔案格式是否正確。";
-                }
-            });
+        function hideOverlay() {
+            document.getElementById('overlay').classList.add('hidden');
         }
     </script>
 </body>
