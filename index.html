@@ -199,6 +199,19 @@
                         <option value="5">多延伸（約 5 題）</option>
                     </select>
                 </div>
+                <div class="col-span-2">
+                    <button type="button" onclick="toggleTimePanel()" class="w-full flex items-center justify-between bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-xs font-bold text-emerald-300 transition">
+                        <span>⏱️ 每題答題時間：<span id="timeSummary" class="text-slate-100">15 秒</span></span>
+                        <i id="timeChevron" class="fa-solid fa-chevron-down text-slate-400 transition-transform"></i>
+                    </button>
+                    <div id="timePanel" class="hidden flex items-center gap-2 mt-2">
+                        <button type="button" onclick="stepTime(-5)" class="w-9 h-9 shrink-0 rounded-lg bg-slate-700 hover:bg-slate-600 font-black text-lg">−</button>
+                        <input type="number" id="timeInput" min="5" max="120" step="1" value="15" onchange="saveQuizSettings()"
+                            class="w-full bg-slate-800 border border-slate-600 p-2 rounded-lg text-center text-base font-black text-slate-100 focus:outline-none focus:border-emerald-400">
+                        <span class="text-xs font-bold text-slate-300 shrink-0">秒</span>
+                        <button type="button" onclick="stepTime(5)" class="w-9 h-9 shrink-0 rounded-lg bg-slate-700 hover:bg-slate-600 font-black text-lg">＋</button>
+                    </div>
+                </div>
                 <p class="col-span-2 text-[11px] text-slate-400">出完題 AI 會再逐題檢查答案，有疑慮的題目自動剔除。</p>
             </div>
 
@@ -316,7 +329,7 @@
         let rightAnswered = false;
 
         // ===== 計分規則 =====
-        const QUESTION_TIME = 15;   // 每題秒數
+        let QUESTION_TIME = 15;     // 每題秒數（可在設定選單自訂，預設 15）
         const MAX_PULL = 36;        // 一答對就按：拉最多
         const MIN_PULL = 8;         // 最後一秒才答對：拉最少
         const ROPE_LIMIT = 220;     // 繩子最遠位移
@@ -345,20 +358,49 @@
 
         // ===== 出題設定（年級、延伸程度）=====
         const GRADE_NAMES = ['', '一', '二', '三', '四', '五', '六'];
+        function clampTime(v) {
+            if (v === '' || v === null || v === undefined) return 15;
+            v = Math.round(Number(v));
+            if (!Number.isFinite(v)) return 15;
+            return Math.min(120, Math.max(5, v));
+        }
         function getQuizSettings() {
             return {
                 grade: Number(localStorage.getItem('quiz_grade') || 4),
-                extend: Number(localStorage.getItem('quiz_extend') ?? 3)
+                extend: Number(localStorage.getItem('quiz_extend') ?? 3),
+                time: clampTime(localStorage.getItem('quiz_time') ?? 15)
             };
         }
         function saveQuizSettings() {
             localStorage.setItem('quiz_grade', document.getElementById('gradeSelect').value);
             localStorage.setItem('quiz_extend', document.getElementById('extendSelect').value);
+            const t = clampTime(document.getElementById('timeInput').value);
+            document.getElementById('timeInput').value = t;
+            localStorage.setItem('quiz_time', t);
+            QUESTION_TIME = t;
+            document.getElementById('timeSummary').innerText = `${t} 秒`;
+            if (!isQuestionActive) document.getElementById('timer').innerText = t;
+        }
+        function toggleTimePanel(force) {
+            const panel = document.getElementById('timePanel');
+            const open = force !== undefined ? force : panel.classList.contains('hidden');
+            panel.classList.toggle('hidden', !open);
+            document.getElementById('timeChevron').classList.toggle('rotate-180', open);
+            if (open) document.getElementById('timeInput').focus();
+        }
+        function stepTime(d) {
+            const input = document.getElementById('timeInput');
+            input.value = clampTime(Number(input.value) + d);
+            saveQuizSettings();
         }
         function renderQuizSettings() {
             const s = getQuizSettings();
             document.getElementById('gradeSelect').value = String(s.grade);
             document.getElementById('extendSelect').value = String(s.extend);
+            document.getElementById('timeInput').value = s.time;
+            QUESTION_TIME = s.time;
+            document.getElementById('timeSummary').innerText = `${s.time} 秒`;
+            document.getElementById('timer').innerText = s.time;
         }
 
         const JSON_FORMAT = `請嚴格以 JSON 格式輸出陣列，answer 為正確選項的索引（0~3），正確答案的位置請平均分散；
@@ -570,6 +612,7 @@ ${JSON.stringify(list)}
             document.getElementById('overlayDesc').innerText = "設定 API Key 與題庫開始遊戲：";
             document.getElementById('actionBtnArea').style.display = "block";
             setOverlayParts({ setup: true, result: false, regen: true, back: false });
+            toggleTimePanel(false);
             document.getElementById('overlayBtn').innerText = "🚀 直接使用目前題目開始遊戲";
             document.getElementById('topicSelectModal').selectedIndex = 0;
             document.getElementById('pdfInputModal').value = '';
